@@ -2,17 +2,9 @@
   "name": "otak-monitor",
   "displayName": "otak-monitor",
   "description": "Otak Monitor displays real-time CPU usage in the status bar and memory details in a tooltip for seamless system monitoring in VSCode.",
-  "keywords": [
-    "cpu",
-    "monitor",
-    "system",
-    "vscode",
-    "performance",
-    "memory"
-  ],
-  "publisher": "odangoo",
+  "version": "1.0.0",
+  "publisher": "tsuyoshi-otake",
   "license": "MIT",
-  "icon": "./images/icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/tsuyoshi-otake-system-exe-jp/otak-monitor"
@@ -21,7 +13,6 @@
     "url": "https://github.com/tsuyoshi-otake-system-exe-jp/otak-monitor/issues"
   },
   "homepage": "https://github.com/tsuyoshi-otake-system-exe-jp/otak-monitor#readme",
-  "version": "1.0.0",
   "engines": {
     "vscode": "^1.90.0"
   },
