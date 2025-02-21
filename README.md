@@ -1,6 +1,6 @@
 <p align="center">
   <h1 align="center">otak-monitor</h1>
-  <p align="center">A lightweight system monitor for VS Code - Track CPU and memory usage with efficient 5-second updates and 1-minute averages.</p>
+  <p align="center">A lightweight system monitor for VS Code - Track CPU, memory, and disk usage with efficient 5-second updates and 1-minute averages.</p>
 </p>
 
 ---
@@ -34,18 +34,30 @@ otak-monitor is a lightweight VS Code extension that helps you monitor system re
   - 1-minute moving average
   - Regular updates
 
+- **Disk Usage Monitoring**:
+  - Cross-platform disk space monitoring
+    - Windows: C: drive (home directory in Codespaces)
+    - macOS: Root volume (/)
+    - Linux: Root filesystem (workspace root in Codespaces)
+  - Shows used and total space in GB
+  - Disk usage percentage
+  - 1-minute moving average
+
 - **Visual Integration**:
   - Clean status bar integration
   - Right-aligned placement
   - Non-intrusive display
   - Detailed hover tooltip showing:
-    - Current CPU and memory metrics
+    - Current CPU, memory, and disk metrics
     - 1-minute average values
     - Regular 5-second updates
 
 ## Requirements
 
-- Visual Studio Code ^1.97.0
+- Visual Studio Code ^1.90.0
+- Supported environments:
+  - Local: Windows, macOS, Linux
+  - Remote: GitHub Codespaces
 
 ## Installation
 
@@ -66,19 +78,36 @@ With a detailed tooltip showing:
 Current:
 CPU Usage: 45.3% (2400 MHz)
 Memory Usage: 1024 MB / 2048 MB (50.0%)
-
-1-Minute Average:
-CPU: 42.8%
-Memory: 48.5%
+Disk Usage: 150 GB / 500 GB (30.0%)
 ```
+
+Note: For disk usage, the monitored path varies by environment:
+- Windows:
+  - Local: C: drive
+  - Codespaces: Home directory
+- macOS: Root volume (/)
+- Linux:
+  - Local: Root filesystem (/)
+  - Codespaces: Workspace root
 
 ## Implementation Details
 
 - CPU usage is calculated by comparing idle and total CPU time differences
 - Memory values are shown in MB and percentage
+- Disk usage monitoring adapts to the environment:
+  - Local machines: Monitors system root or C: drive
+  - Codespaces: Monitors relevant workspace paths
 - Moving averages are calculated using 12 data points (5-second intervals over 1 minute)
 - Updates occur every 5 seconds for efficient monitoring
 - Minimal performance impact on the system
+
+## GitHub Codespaces Support
+
+The extension automatically detects when running in GitHub Codespaces and adjusts its behavior:
+- Monitors the workspace root directory in Linux environments
+- Uses home directory for Windows-based Codespaces
+- Maintains consistent monitoring experience across all environments
+- Provides accurate disk usage information for containerized development
 
 ## Contributing
 
@@ -91,5 +120,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 For more information, visit the [GitHub repository](https://github.com/tsuyoshi-otake-system-exe-jp/otak-monitor).
-
-Part of the [otak-series](https://marketplace.visualstudio.com/search?term=otak&target=VSCode) VS Code extensions.

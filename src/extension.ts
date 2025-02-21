@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import * as os from 'os';
+import * as fs from 'fs';
+import * as path from 'path';
 
 interface CPUTime {
     idle: number;
@@ -10,6 +12,7 @@ interface SystemMetrics {
     timestamp: number;
     cpuUsage: number;
     memoryUsage: number;
+    diskUsage: number;
 }
 
 let previousCPUTime: CPUTime | null = null;
@@ -68,32 +71,79 @@ function getMemoryUsage(): { used: number; total: number; usagePercent: number }
     };
 }
 
-function updateMetricsHistory(cpuUsage: number, memoryUsage: number) {
+function getDiskUsage(): { free: number; total: number; usagePercent: number } {
+    // デフォルト値（エラー時や非対応プラットフォーム用）
+    const defaultResult = { free: 0, total: 0, usagePercent: 0 };
+
+    try {
+        let monitorPath: string;
+        switch (os.platform()) {
+            case 'win32':
+                // Codespacesではホームディレクトリを使用
+                monitorPath = process.env.CODESPACES ? 
+                    path.resolve(os.homedir()) :
+                    'C:\\';
+                break;
+            case 'darwin':
+                // MacOSのルートディレクトリ
+                monitorPath = '/';
+                break;
+            case 'linux':
+                // LinuxのルートディレクトリまたはCodespacesのワークスペースルート
+                monitorPath = process.env.CODESPACES ? 
+                    path.resolve(process.env.CODESPACE_VSCODE_FOLDER || '/') : '/';
+                break;
+            default:
+                console.warn('Unsupported platform for disk monitoring');
+                return defaultResult;
+        }
+        try {
+            const stats = fs.statfsSync(monitorPath);
+            const total = Math.round((stats.blocks * stats.bsize) / (1024 * 1024 * 1024)); // GB単位
+            const free = Math.round((stats.bfree * stats.bsize) / (1024 * 1024 * 1024));
+            const used = total - free;
+            const usagePercent = total > 0 ? Math.round((used / total) * 100) : 0;
+
+            return { free, total, usagePercent };
+        } catch (statError) {
+            console.error(`Failed to get disk stats for ${monitorPath}:`, statError);
+            return defaultResult;
+        }
+    } catch (error) {
+        console.error('Error in disk usage monitoring:', error instanceof Error ? error.message : error);
+        return defaultResult;
+    }
+}
+
+function updateMetricsHistory(cpuUsage: number, memoryUsage: number, diskUsage: number) {
     metricsHistory.push({
         timestamp: Date.now(),
         cpuUsage,
-        memoryUsage
+        memoryUsage,
+        diskUsage
     });
     if (metricsHistory.length > HISTORY_LENGTH) {
         metricsHistory.shift();
     }
 }
 
-function getAverageMetrics(): { cpuAvg: number; memoryAvg: number } {
+function getAverageMetrics(): { cpuAvg: number; memoryAvg: number; diskAvg: number } {
     if (metricsHistory.length === 0) {
-        return { cpuAvg: 0, memoryAvg: 0 };
+        return { cpuAvg: 0, memoryAvg: 0, diskAvg: 0 };
     }
-    const { cpuUsage, memoryUsage } = metricsHistory.reduce(
+    const { cpuUsage, memoryUsage, diskUsage } = metricsHistory.reduce(
         (acc, val) => ({
             cpuUsage: acc.cpuUsage + val.cpuUsage,
             memoryUsage: acc.memoryUsage + val.memoryUsage,
+            diskUsage: acc.diskUsage + val.diskUsage
         }),
-        { cpuUsage: 0, memoryUsage: 0 }
+        { cpuUsage: 0, memoryUsage: 0, diskUsage: 0 }
     );
 
     return {
         cpuAvg: Math.round(cpuUsage / metricsHistory.length),
         memoryAvg: Math.round(memoryUsage / metricsHistory.length),
+        diskAvg: Math.round(diskUsage / metricsHistory.length)
     };
 }
 
@@ -123,8 +173,9 @@ export function activate(context: vscode.ExtensionContext) {
     function updateStatus() {
         const cpuInfo = getCPUInfo();
         const memoryInfo = getMemoryUsage();
+        const diskInfo = getDiskUsage();
 
-        updateMetricsHistory(cpuInfo.usage, memoryInfo.usagePercent);
+        updateMetricsHistory(cpuInfo.usage, memoryInfo.usagePercent, diskInfo.usagePercent);
         const averages = getAverageMetrics();
 
         // CPU使用率は整数値で、常に2桁表示になるようにパディング
@@ -138,6 +189,7 @@ export function activate(context: vscode.ExtensionContext) {
         mdTooltip.appendText("Current\n\n");
         mdTooltip.appendText(`CPU Usage: ${cpuDisplay}% @ ${cpuInfo.speed} MHz\n\n`);
         mdTooltip.appendText(`Memory Usage: ${memoryInfo.used} MB / ${memoryInfo.total} MB (${memoryInfo.usagePercent}%)\n\n`);
+        mdTooltip.appendText(`Disk Usage (C:): ${diskInfo.total - diskInfo.free} GB / ${diskInfo.total} GB (${diskInfo.usagePercent}%)\n\n`);
 
         // Markdown を利用して罫線を挿入
         mdTooltip.appendMarkdown("---\n\n");

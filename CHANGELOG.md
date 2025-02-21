@@ -2,6 +2,28 @@
 
 All notable changes to the "otak-monitor" extension will be documented in this file.
 
+## [1.1.0] - 2024-02-22
+
+### Added
+- Disk usage monitoring
+  - Shows used and total space in GB
+  - Disk usage percentage display
+  - One-minute moving average
+  - Integration with tooltip display
+
+### Enhanced
+- Cross-platform support
+  - Windows: C: drive monitoring
+  - macOS: Root volume (/) monitoring
+  - Linux: Root filesystem (/) monitoring
+
+### Added
+- GitHub Codespaces support
+  - Automatic environment detection
+  - Workspace-aware disk monitoring
+  - Adaptive path resolution for containers
+  - Consistent monitoring experience in remote development
+
 ## [1.0.0] - 2024-02-22
 
 ### Added
