@@ -71,32 +71,53 @@ function getMemoryUsage(): { used: number; total: number; usagePercent: number }
     };
 }
 
+function getDiskLabel(): string {
+    switch (os.platform()) {
+        case 'win32':
+            return process.env.CODESPACES ? 
+                'Disk Usage (Home)' : 
+                'Disk Usage (C:)';
+        case 'darwin':
+            return 'Disk Usage (/)';
+        case 'linux':
+            return process.env.CODESPACES ? 
+                'Disk Usage (Workspace)' : 
+                'Disk Usage (/)';
+        default:
+            return 'Disk Usage';
+    }
+}
+
+function getMonitorPath(): string {
+    switch (os.platform()) {
+        case 'win32':
+            // Codespacesではホームディレクトリを使用
+            return process.env.CODESPACES ? 
+                path.resolve(os.homedir()) :
+                'C:\\';
+        case 'darwin':
+            // MacOSのルートディレクトリ
+             return '/';
+       case 'linux':
+            // LinuxのルートディレクトリまたはCodespacesのワークスペースルート
+            return process.env.CODESPACES ? 
+                path.resolve(process.env.CODESPACE_VSCODE_FOLDER || '/') : '/';
+        default:
+            console.warn('Unsupported platform for disk monitoring');
+            return '';
+    }
+}
+
 function getDiskUsage(): { free: number; total: number; usagePercent: number } {
     // デフォルト値（エラー時や非対応プラットフォーム用）
     const defaultResult = { free: 0, total: 0, usagePercent: 0 };
-
+ 
     try {
-        let monitorPath: string;
-        switch (os.platform()) {
-            case 'win32':
-                // Codespacesではホームディレクトリを使用
-                monitorPath = process.env.CODESPACES ? 
-                    path.resolve(os.homedir()) :
-                    'C:\\';
-                break;
-            case 'darwin':
-                // MacOSのルートディレクトリ
-                monitorPath = '/';
-                break;
-            case 'linux':
-                // LinuxのルートディレクトリまたはCodespacesのワークスペースルート
-                monitorPath = process.env.CODESPACES ? 
-                    path.resolve(process.env.CODESPACE_VSCODE_FOLDER || '/') : '/';
-                break;
-            default:
-                console.warn('Unsupported platform for disk monitoring');
-                return defaultResult;
+        const monitorPath = getMonitorPath();
+        if (!monitorPath) {
+            return defaultResult;
         }
+        
         try {
             const stats = fs.statfsSync(monitorPath);
             const total = Math.round((stats.blocks * stats.bsize) / (1024 * 1024 * 1024)); // GB単位
@@ -189,7 +210,7 @@ export function activate(context: vscode.ExtensionContext) {
         mdTooltip.appendText("Current\n\n");
         mdTooltip.appendText(`CPU Usage: ${cpuDisplay}% @ ${cpuInfo.speed} MHz\n\n`);
         mdTooltip.appendText(`Memory Usage: ${memoryInfo.used} MB / ${memoryInfo.total} MB (${memoryInfo.usagePercent}%)\n\n`);
-        mdTooltip.appendText(`Disk Usage (C:): ${diskInfo.total - diskInfo.free} GB / ${diskInfo.total} GB (${diskInfo.usagePercent}%)\n\n`);
+        mdTooltip.appendText(`${getDiskLabel()}: ${diskInfo.total - diskInfo.free} GB / ${diskInfo.total} GB (${diskInfo.usagePercent}%)\n\n`);
 
         // Markdown を利用して罫線を挿入
         mdTooltip.appendMarkdown("---\n\n");

@@ -2,6 +2,13 @@
 
 All notable changes to the "otak-monitor" extension will be documented in this file.
 
+## [1.1.1] - 2024-02-22
+
+### Enhanced
+- Improved disk label display for different operating systems
+  - Windows: Shows "Disk Usage (C:)" or "Disk Usage (Home)" for Codespaces
+  - Linux/macOS: Shows "Disk Usage (/)" or "Disk Usage (Workspace)" for Codespaces
+
 ## [1.1.0] - 2024-02-22
 
 ### Added
