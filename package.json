@@ -1,0 +1,51 @@
+{
+  "name": "otak-monitor",
+  "displayName": "otak-monitor",
+  "description": "Otak Monitor displays real-time CPU usage in the status bar and memory details in a tooltip for seamless system monitoring in VSCode.",
+  "publisher": "odangoo",
+  "license": "MIT",
+  "icon": "./images/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tsuyoshi-otake-system-exe-jp/otak-monitor"
+  },
+  "bugs": {
+    "url": "https://github.com/tsuyoshi-otake-system-exe-jp/otak-monitor/issues"
+  },
+  "homepage": "https://github.com/tsuyoshi-otake-system-exe-jp/otak-monitor#readme",
+  "version": "1.0.0",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": []
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.90.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@typescript-eslint/eslint-plugin": "^8.22.0",
+    "@typescript-eslint/parser": "^8.22.0",
+    "eslint": "^9.19.0",
+    "typescript": "^5.7.3",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1",
+    "@vscode/vsce": "^2.24.0"
+  }
+}
