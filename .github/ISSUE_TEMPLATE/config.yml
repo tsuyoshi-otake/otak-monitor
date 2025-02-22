@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Existing Issues
+    url: https://github.com/tsuyoshi-otake-system-exe-jp/otak-monitor/issues?q=is%3Aissue
+    about: Please check if a similar issue already exists
+  - name: Questions & Discussions
+    url: https://github.com/tsuyoshi-otake-system-exe-jp/otak-monitor/discussions
+    about: Please ask questions in Discussions
+  - name: Documentation
+    url: https://github.com/tsuyoshi-otake-system-exe-jp/otak-monitor/wiki
+    about: Check our documentation for guides and FAQs
