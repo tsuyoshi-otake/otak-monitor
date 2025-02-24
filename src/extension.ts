@@ -9,7 +9,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     const metricsCollector = new MetricsCollector();
 
-    // Create a status bar item
+    // ステータスバーアイテムを作成
     const statusBarItem = vscode.window.createStatusBarItem(
         vscode.StatusBarAlignment.Right,
         100
@@ -17,22 +17,36 @@ export function activate(context: vscode.ExtensionContext) {
     statusBarItem.command = 'otak-monitor.copyMetrics';
     context.subscriptions.push(statusBarItem);
 
-    // Register the command to be executed on click
+    // 初期ツールチップを設定
+    const initialMetrics = metricsCollector.getAllMetrics();
+    statusBarItem.tooltip = MetricsFormatter.createTooltip(initialMetrics);
+
+    // クリック時のコマンドを登録
     let disposable = vscode.commands.registerCommand('otak-monitor.copyMetrics', () => {
         const metrics = metricsCollector.getAllMetrics();
         
-        // Update tooltip
+        // ツールチップを更新
         statusBarItem.tooltip = MetricsFormatter.createTooltip(metrics);
         
-        // Copy to clipboard
+        // クリップボードにコピー
         const clipboardText = MetricsFormatter.createClipboardText(metrics);
         vscode.env.clipboard.writeText(clipboardText).then(() => {
-            vscode.window.showInformationMessage('System metrics copied to clipboard');
+            // 一時的な通知を表示（5秒後に自動で消える）
+            vscode.window.withProgress(
+                {
+                    location: vscode.ProgressLocation.Notification,
+                    title: 'System metrics copied to clipboard (Markdown format)',
+                    cancellable: false
+                },
+                async (progress) => {
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                }
+            );
         });
     });
     context.subscriptions.push(disposable);
 
-    // Timer reset procedure
+    // タイマーの再設定処理
     function startTimer() {
         if (timer) {
             clearInterval(timer);
@@ -40,25 +54,29 @@ export function activate(context: vscode.ExtensionContext) {
         timer = setInterval(updateStatus, getEffectiveInterval()) as NodeJS.Timeout;
     }
 
-    // Determine update interval based on VS Code window focus state
+    // VS Code ウィンドウのフォーカス状態に応じて更新間隔を決定
     function getEffectiveInterval(): number {
-        const UPDATE_INTERVAL = 5000; // Base update every 5 seconds
+        const UPDATE_INTERVAL = 5000; // 基本は5秒ごと
         return vscode.window.state.focused ? UPDATE_INTERVAL : UPDATE_INTERVAL * 2;
     }
 
-    // Update the status bar (CPU usage only)
+    // ステータスバーの更新
     function updateStatus() {
-        const cpuInfo = metricsCollector.getCPUInfo();
-        statusBarItem.text = MetricsFormatter.getStatusBarText(cpuInfo.usage);
+        const metrics = metricsCollector.getAllMetrics();
+        statusBarItem.text = MetricsFormatter.getStatusBarText(metrics.cpu.usage);
+        
+        // ツールチップも定期的に更新
+        statusBarItem.tooltip = MetricsFormatter.createTooltip(metrics);
+        
         statusBarItem.show();
     }
 
-    // Reset timer when focus state changes
+    // フォーカス状態変更時にタイマーを再設定
     vscode.window.onDidChangeWindowState(() => {
         startTimer();
     }, null, context.subscriptions);
 
-    // Start initial timer
+    // 初期タイマー開始
     startTimer();
 }
 
