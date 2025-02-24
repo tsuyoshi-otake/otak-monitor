@@ -2,6 +2,26 @@
 
 All notable changes to the "otak-monitor" extension will be documented in this file.
 
+## [1.2.0] - 2024-02-24
+
+### Added
+- Clipboard integration
+  - Copy system metrics in Markdown format
+  - Automatic notification with 5-second timeout
+  - Well-formatted output with headers and styling
+
+### Enhanced
+- Performance optimization
+  - Split code into modular components
+  - Separate metrics collection and formatting logic
+  - Improved code maintainability
+
+### Changed
+- Status bar behavior
+  - Status bar now shows CPU usage only
+  - Regular tooltip updates without requiring click
+  - More efficient update cycle
+
 ## [1.1.1] - 2024-02-22
 
 ### Enhanced
