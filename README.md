@@ -140,6 +140,9 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 
 Check out our other VS Code extensions.
 
+### [otak-monitor](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-monitor)
+Real-time system monitoring in VS Code. Track CPU, memory, and disk usage through the status bar with comprehensive tooltips and 1-minute averages.
+
 ### [otak-proxy](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-proxy)
 One-click proxy configuration for VS Code and Git. Perfect for environments where network settings change frequently.
 
