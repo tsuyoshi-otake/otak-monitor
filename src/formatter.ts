@@ -62,17 +62,17 @@ export class MetricsFormatter {
         const cpuDisplay = metrics.cpu.usage.toString().padStart(2, '0');
         
         return [
-            `System Metrics (${timestamp})`,
+            `# System Metrics (${timestamp})`,
             '',
-            'Current',
-            `CPU Usage: ${cpuDisplay}% @ ${metrics.cpu.speed} MHz`,
-            `Memory Usage: ${metrics.memory.used} MB / ${metrics.memory.total} MB (${metrics.memory.usagePercent}%)`,
-            `${this.getDiskLabel()}: ${metrics.disk.total - metrics.disk.free} GB / ${metrics.disk.total} GB (${metrics.disk.usagePercent}%)`,
+            '## Current Status',
+            `- **CPU Usage:** ${cpuDisplay}% @ ${metrics.cpu.speed} MHz`,
+            `- **Memory Usage:** ${metrics.memory.used} MB / ${metrics.memory.total} MB (${metrics.memory.usagePercent}%)`,
+            `- **${this.getDiskLabel()}:** ${metrics.disk.total - metrics.disk.free} GB / ${metrics.disk.total} GB (${metrics.disk.usagePercent}%)`,
             '',
-            '1-Minute Average',
-            `CPU: ${metrics.averages.cpuAvg.toString().padStart(2, '0')}%`,
-            `Memory: ${metrics.averages.memoryAvg}%`,
-            `Disk: ${metrics.averages.diskAvg}%`
+            '## 1-Minute Average',
+            `- **CPU:** ${metrics.averages.cpuAvg.toString().padStart(2, '0')}%`,
+            `- **Memory:** ${metrics.averages.memoryAvg}%`,
+            `- **Disk:** ${metrics.averages.diskAvg}%`
         ].join('\n');
     }
 
