@@ -2,7 +2,7 @@
   "name": "otak-monitor",
   "displayName": "otak-monitor",
   "description": "Otak Monitor displays real-time CPU, memory, and disk usage in VSCode, providing comprehensive system monitoring through the status bar and detailed tooltip.",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "publisher": "odangoo",
   "license": "MIT",
   "icon": "./images/icon.png",
