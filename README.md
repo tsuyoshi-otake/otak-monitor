@@ -47,10 +47,17 @@ otak-monitor is a lightweight VS Code extension that helps you monitor system re
   - Clean status bar integration
   - Right-aligned placement
   - Non-intrusive display
-  - Detailed hover tooltip showing:
+  - Interactive status bar item:
     - Current CPU, memory, and disk metrics
     - 1-minute average values
     - Regular 5-second updates
+    - Click to copy metrics in Markdown format
+
+- **Clipboard Integration**:
+  - Copy system metrics with a single click
+  - Well-formatted Markdown output
+  - Includes timestamps for reference
+  - Temporary notification with auto-dismiss
 
 ## Requirements
 
@@ -64,6 +71,7 @@ otak-monitor is a lightweight VS Code extension that helps you monitor system re
 1. Install the extension from VS Code Marketplace
 2. Look for the CPU usage display in your status bar
 3. Hover over it to see detailed system information
+4. Click to copy current metrics in Markdown format
 
 ## Status Bar Display
 
@@ -73,12 +81,27 @@ The extension shows the following information in your status bar:
 CPU: 45.3%  // CPU usage
 ```
 
-With a detailed tooltip showing:
+Hover over the status bar to see detailed information:
 ```
 Current:
 CPU Usage: 45.3% (2400 MHz)
 Memory Usage: 1024 MB / 2048 MB (50.0%)
 Disk Usage: 150 GB / 500 GB (30.0%)
+```
+
+Click the status bar item to copy metrics in Markdown format:
+```markdown
+# System Metrics (2024-02-24 14:00:00)
+
+## Current Status
+- **CPU Usage:** 45.3% @ 2400 MHz
+- **Memory Usage:** 1024 MB / 2048 MB (50.0%)
+- **Disk Usage (C:):** 150 GB / 500 GB (30.0%)
+
+## 1-Minute Average
+- **CPU:** 44.8%
+- **Memory:** 49.5%
+- **Disk:** 30.0%
 ```
 
 Note: For disk usage, the monitored path varies by environment:
