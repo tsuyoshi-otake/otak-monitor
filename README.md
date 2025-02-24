@@ -136,6 +136,25 @@ The extension automatically detects when running in GitHub Codespaces and adjust
 
 Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
 
+## Related Extensions
+
+Check out our other VS Code extensions.
+
+### [otak-proxy](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-proxy)
+One-click proxy configuration for VS Code and Git. Perfect for environments where network settings change frequently.
+
+### [otak-committer](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-committer)
+Intelligent SCM operations with AI support. Features multilingual commit message generation (25 languages supported) and upcoming PR management capabilities.
+
+### [otak-restart](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-restart)
+Quick restart operations for Extension Host and VS Code window via status bar tooltip. Streamlines your development workflow.
+
+### [otak-clock](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-clock)
+Display date and time for two time zones from around the world in VS Code. Essential for working across different time zones.
+
+### [otak-pomodoro](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-pomodoro)
+Enhance your productivity with this Pomodoro Timer extension. Helps balance focused work sessions with refreshing breaks using the Pomodoro Technique.
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
