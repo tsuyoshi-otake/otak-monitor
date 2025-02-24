@@ -25,7 +25,13 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
-    "commands": []
+    "commands": [
+      {
+        "command": "otak-monitor.copyMetrics",
+        "title": "Copy System Metrics",
+        "category": "Otak Monitor"
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
