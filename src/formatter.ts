@@ -40,15 +40,6 @@ export class MetricsFormatter {
             `${this.getDiskLabel()}: ${metrics.disk.total - metrics.disk.free} GB / ${metrics.disk.total} GB (${metrics.disk.usagePercent}%)\n\n`
         );
 
-        // Separator
-        mdTooltip.appendMarkdown("---\n\n");
-
-        // Averages section
-        mdTooltip.appendText("1-Minute Average\n\n");
-        mdTooltip.appendMarkdown(
-            `CPU: ${metrics.averages.cpuAvg.toString().padStart(2, '0')}%&nbsp;&nbsp; Memory: ${metrics.averages.memoryAvg}%`
-        );
-
         return mdTooltip;
     }
 
@@ -77,6 +68,8 @@ export class MetricsFormatter {
     }
 
     public static getStatusBarText(cpuUsage: number): string {
-        return `CPU: ${cpuUsage.toString().padStart(2, '0')}%`;
+        return `CPU: ${cpuUsage === 100 ? 
+            "100" : 
+            cpuUsage.toString().padStart(2, '0')}%`;
     }
 }

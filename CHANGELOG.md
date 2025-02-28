@@ -2,6 +2,13 @@
 
 All notable changes to the "otak-monitor" extension will be documented in this file.
 
+## [1.2.1] - 2024-02-28
+
+### Changed
+- CPU usage display format
+  - Changed to two-digit format (e.g., "05%" instead of "005%")
+- Reduced clipboard copy notification duration from 5 to 2 seconds
+
 ## [1.2.0] - 2024-02-24
 
 ### Added

@@ -17,7 +17,7 @@ export interface SystemMetrics {
 export class MetricsCollector {
     private previousCPUTime: CPUTime | null = null;
     private metricsHistory: SystemMetrics[] = [];
-    private readonly HISTORY_LENGTH = 12; // 1分間（12データポイント）
+    private readonly HISTORY_LENGTH = 24; // 1分間（24データポイント）
 
     public getCPUInfo(): { usage: number; speed: number } {
         const cpus = os.cpus();

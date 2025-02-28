@@ -137,7 +137,6 @@ The extension automatically detects when running in GitHub Codespaces and adjust
 Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
 
 ## Related Extensions
-
 Check out our other VS Code extensions.
 
 ### [otak-monitor](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-monitor)
@@ -158,10 +157,13 @@ Display date and time for two time zones from around the world in VS Code. Essen
 ### [otak-pomodoro](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-pomodoro)
 Enhance your productivity with this Pomodoro Timer extension. Helps balance focused work sessions with refreshing breaks using the Pomodoro Technique.
 
+### [otak-zen](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-zen)
+Experience a distraction-free workflow with otak-zen. This extension transforms your VS Code interface into a minimalist environment by hiding non-essential UI elements, allowing you to focus solely on coding. Customize which components to show or hide, and toggle zen mode quickly via commands or the status bar.
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-For more information, visit the [GitHub repository](https://github.com/tsuyoshi-otake-system-exe-jp/otak-monitor).
+For more information, visit the [GitHub repository](https://github.com/tsuyoshi-otake/otak-monitor).

@@ -39,7 +39,7 @@ export function activate(context: vscode.ExtensionContext) {
                     cancellable: false
                 },
                 async (progress) => {
-                    await new Promise(resolve => setTimeout(resolve, 5000));
+                    await new Promise(resolve => setTimeout(resolve, 2000));
                 }
             );
         });
@@ -56,7 +56,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // VS Code ウィンドウのフォーカス状態に応じて更新間隔を決定
     function getEffectiveInterval(): number {
-        const UPDATE_INTERVAL = 5000; // 基本は5秒ごと
+        const UPDATE_INTERVAL = 2500; // 基本は2.5秒ごと
         return vscode.window.state.focused ? UPDATE_INTERVAL : UPDATE_INTERVAL * 2;
     }
 
