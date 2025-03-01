@@ -135,10 +135,6 @@ The extension automatically detects when running in GitHub Codespaces and adjust
 - Maintains consistent monitoring experience across all environments
 - Provides accurate disk usage information for containerized development
 
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
-
 ## Related Extensions
 Check out our other VS Code extensions.
 
