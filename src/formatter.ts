@@ -29,15 +29,15 @@ export class MetricsFormatter {
         const cpuDisplay = metrics.cpu.usage.toString().padStart(2, '0');
 
         // Current metrics section
-        mdTooltip.appendText("Current\n\n");
-        mdTooltip.appendText(
+        mdTooltip.appendMarkdown("Current\n\n---\n\n");
+        mdTooltip.appendMarkdown(
             `CPU Usage: ${cpuDisplay}% @ ${metrics.cpu.speed} MHz\n\n`
         );
-        mdTooltip.appendText(
+        mdTooltip.appendMarkdown(
             `Memory Usage: ${metrics.memory.used} MB / ${metrics.memory.total} MB (${metrics.memory.usagePercent}%)\n\n`
         );
-        mdTooltip.appendText(
-            `${this.getDiskLabel()}: ${metrics.disk.total - metrics.disk.free} GB / ${metrics.disk.total} GB (${metrics.disk.usagePercent}%)\n\n`
+        mdTooltip.appendMarkdown(
+            `${this.getDiskLabel()}: ${metrics.disk.total - metrics.disk.free} GB / ${metrics.disk.total} GB (${metrics.disk.usagePercent}%)`
         );
 
         return mdTooltip;
