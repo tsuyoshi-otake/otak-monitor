@@ -21,7 +21,7 @@ otak-monitor is a lightweight VS Code extension that helps you monitor system re
 
 - **CPU Monitoring**:
   - Status bar display of CPU usage percentage
-  - Updates every 5 seconds
+  - Updates every 2.5 seconds (5 seconds when window is not focused)
   - Aggregated across all CPU cores
   - Precise to one decimal place
   - Current CPU clock speed (MHz)
@@ -50,7 +50,7 @@ otak-monitor is a lightweight VS Code extension that helps you monitor system re
   - Interactive status bar item:
     - Current CPU, memory, and disk metrics
     - 1-minute average values
-    - Regular 5-second updates
+    - Regular 2.5-second updates (5 seconds when window is not focused)
     - Click to copy metrics in Markdown format
 
 - **Clipboard Integration**:
@@ -84,6 +84,9 @@ CPU: 45.3%  // CPU usage
 Hover over the status bar to see detailed information:
 ```
 Current:
+
+---
+
 CPU Usage: 45.3% (2400 MHz)
 Memory Usage: 1024 MB / 2048 MB (50.0%)
 Disk Usage: 150 GB / 500 GB (30.0%)
@@ -120,8 +123,8 @@ Note: For disk usage, the monitored path varies by environment:
 - Disk usage monitoring adapts to the environment:
   - Local machines: Monitors system root or C: drive
   - Codespaces: Monitors relevant workspace paths
-- Moving averages are calculated using 12 data points (5-second intervals over 1 minute)
-- Updates occur every 5 seconds for efficient monitoring
+- Moving averages are calculated using 24 data points (2.5-second intervals over 1 minute)
+- Updates occur every 2.5 seconds (5 seconds when window is not focused) for efficient monitoring
 - Minimal performance impact on the system
 
 ## GitHub Codespaces Support
