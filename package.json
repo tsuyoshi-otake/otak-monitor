@@ -2,7 +2,7 @@
   "name": "otak-monitor",
   "displayName": "otak-monitor",
   "description": "Otak Monitor displays real-time CPU, memory, and disk usage in VSCode, providing comprehensive system monitoring through the status bar and detailed tooltip.",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "publisher": "odangoo",
   "license": "MIT",
   "icon": "./images/icon.png",
@@ -43,15 +43,21 @@
     "package": "vsce package"
   },
   "devDependencies": {
-    "@types/vscode": "^1.90.0",
+    "@types/vscode": "1.90.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "20.x",
     "@typescript-eslint/eslint-plugin": "^8.22.0",
     "@typescript-eslint/parser": "^8.22.0",
     "eslint": "^9.19.0",
     "typescript": "^5.7.3",
-    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.4.1",
-    "@vscode/vsce": "^2.24.0"
+    "@vscode/vsce": "^3.6.0"
+  },
+  "overrides": {
+    "brace-expansion@1": "1.1.13",
+    "brace-expansion@2": "2.0.3",
+    "diff": "8.0.3",
+    "serialize-javascript": "7.0.5"
   }
 }

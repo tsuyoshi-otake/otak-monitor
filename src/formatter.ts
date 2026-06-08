@@ -1,5 +1,6 @@
 import * as os from 'os';
 import * as vscode from 'vscode';
+import { MetricsSnapshot } from './metrics';
 
 export class MetricsFormatter {
     public static getDiskLabel(): string {
@@ -19,12 +20,7 @@ export class MetricsFormatter {
         }
     }
 
-    public static createTooltip(metrics: {
-        cpu: { usage: number; speed: number };
-        memory: { used: number; total: number; usagePercent: number };
-        disk: { free: number; total: number; usagePercent: number };
-        averages: { cpuAvg: number; memoryAvg: number; diskAvg: number };
-    }): vscode.MarkdownString {
+    public static createTooltip(metrics: MetricsSnapshot): vscode.MarkdownString {
         const mdTooltip = new vscode.MarkdownString();
         const cpuDisplay = metrics.cpu.usage.toString().padStart(2, '0');
 
@@ -43,12 +39,7 @@ export class MetricsFormatter {
         return mdTooltip;
     }
 
-    public static createClipboardText(metrics: {
-        cpu: { usage: number; speed: number };
-        memory: { used: number; total: number; usagePercent: number };
-        disk: { free: number; total: number; usagePercent: number };
-        averages: { cpuAvg: number; memoryAvg: number; diskAvg: number };
-    }): string {
+    public static createClipboardText(metrics: MetricsSnapshot): string {
         const timestamp = new Date().toLocaleString();
         const cpuDisplay = metrics.cpu.usage.toString().padStart(2, '0');
         

@@ -2,6 +2,18 @@
 
 All notable changes to the "otak-monitor" extension will be documented in this file.
 
+## [1.2.3] - 2026-06-08
+
+### Changed
+- Split CPU, memory, disk, path resolution, and rolling average responsibilities out of the metrics service.
+- Replaced history `shift()` and per-sample `reduce()` averaging with fixed-size O(1) rolling totals.
+- Cached disk usage sampling to reduce synchronous filesystem work on the extension host.
+- Updated packaging/test dependencies and regenerated the lockfile for vulnerability remediation.
+
+### Fixed
+- Registered timer cleanup through a disposable controller and returned the copy command promise to VS Code.
+- Added command error handling for clipboard copy failures.
+
 ## [1.2.2] - 2024-03-01
 
 ### Changed
