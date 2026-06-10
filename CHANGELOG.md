@@ -2,6 +2,12 @@
 
 All notable changes to the "otak-monitor" extension will be documented in this file.
 
+## [1.2.4] - 2026-06-10
+
+### Changed
+- Maintenance release with no functional changes.
+- Verified operation on Windows, macOS, and Linux (including GitHub Codespaces) with the full test suite on each platform.
+
 ## [1.2.3] - 2026-06-08
 
 ### Changed
