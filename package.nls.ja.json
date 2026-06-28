@@ -1,0 +1,4 @@
+{
+  "extension.description": "Otak Monitor は、VS Code のステータスバーに CPU、メモリ、ディスク使用率をリアルタイム表示し、詳細ツールチップと Markdown 形式のクリップボードスナップショットを提供します。",
+  "command.copyMetrics.title": "システムメトリクスをコピー"
+}

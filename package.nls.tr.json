@@ -1,0 +1,4 @@
+{
+  "extension.description": "Otak Monitor, VS Code durum çubuğunda CPU, bellek ve disk kullanımını gerçek zamanlı gösterir; ayrıntılı ipuçları ve Markdown pano anlık görüntüleri sağlar.",
+  "command.copyMetrics.title": "Sistem metriklerini kopyala"
+}

@@ -1,168 +1,191 @@
-<p align="center">
-  <h1 align="center">otak-monitor</h1>
-  <p align="center">A lightweight system monitor for VS Code - Track CPU, memory, and disk usage with efficient 5-second updates and 1-minute averages.</p>
-</p>
+<div align="center">
+
+# otak-monitor
+
+**Watch CPU, memory, and disk usage without leaving VS Code.**
+
+otak-monitor keeps a lightweight CPU indicator in your status bar, shows current system metrics on hover, and copies a Markdown snapshot when you click it.
+
+[![VS Marketplace](https://img.shields.io/visual-studio-marketplace/v/odangoo.otak-monitor?label=Marketplace&color=1d4ed8)](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-monitor)
+[![VS Code engine](https://img.shields.io/badge/VS%20Code-%5E1.90.0-007acc)](https://code.visualstudio.com/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![GitHub](https://img.shields.io/badge/GitHub-otak--monitor-24292f)](https://github.com/tsuyoshi-otake/otak-monitor)
+
+![Local system metrics](https://img.shields.io/badge/metrics-local%20only-0f766e)
+![Status bar monitor](https://img.shields.io/badge/status%20bar-CPU%20usage-2563eb)
+![Markdown clipboard](https://img.shields.io/badge/clipboard-Markdown-7c3aed)
+![Codespaces aware](https://img.shields.io/badge/Codespaces-aware-334155)
+![No telemetry](https://img.shields.io/badge/telemetry-none-64748b)
+
+[**Install**](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-monitor) ·
+[**GitHub**](https://github.com/tsuyoshi-otake/otak-monitor) ·
+[**Report an issue**](https://github.com/tsuyoshi-otake/otak-monitor/issues)
+
+</div>
 
 ---
 
-## Usage
+Development often means checking whether your editor, build, tests, containers, or browser are consuming the machine. **otak-monitor keeps the essential CPU, memory, and disk numbers inside VS Code** so you can glance at the status bar, inspect details on hover, and paste a formatted snapshot into notes or issues.
 
-![System Monitor in Action](images/otak-monitor.png)
+## Quick Start
 
-1. Find the system monitor in your VS Code status bar
-2. View CPU usage percentage
-3. Hover to see detailed current and average metrics
+1. **Install** from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-monitor).
+2. Reload or start VS Code.
+3. Find the CPU indicator on the right side of the status bar.
+4. Hover to inspect CPU, memory, and disk usage.
+5. Click the status bar item to copy a Markdown metrics snapshot.
 
-## Features
+![otak-monitor status bar and tooltip](images/otak-monitor.png)
 
-otak-monitor is a lightweight VS Code extension that helps you monitor system resources without leaving your editor.
+## Capabilities
 
-### Key Features
+- **Status bar CPU monitor**: shows current CPU usage in a stable-width `CPU: 05%` format.
+- **Current system tooltip**: hover for CPU usage and clock speed, memory usage, and disk usage.
+- **Markdown clipboard snapshot**: click once to copy current metrics and 1-minute averages.
+- **Rolling averages**: keeps a fixed-size history of 24 samples for CPU, memory, and disk averages.
+- **Efficient refresh cadence**: updates every 2.5 seconds while the VS Code window is focused and every 5 seconds while unfocused.
+- **Cached disk sampling**: avoids repeated synchronous disk checks by caching disk stats between samples.
+- **Cross-platform paths**: monitors the right root path on Windows, macOS, Linux, and GitHub Codespaces.
+- **Local-only operation**: no accounts, API keys, telemetry, or network calls are required for monitoring.
 
-- **CPU Monitoring**:
-  - Status bar display of CPU usage percentage
-  - Updates every 2.5 seconds (5 seconds when window is not focused)
-  - Aggregated across all CPU cores
-  - Precise to one decimal place
-  - Current CPU clock speed (MHz)
-  - 1-minute moving average
+## How It Works
 
-- **Memory Usage Tracking**:
-  - Detailed memory information
-  - Shows used and total memory in MB
-  - Memory usage percentage
-  - 1-minute moving average
-  - Regular updates
+When VS Code finishes startup, otak-monitor:
 
-- **Disk Usage Monitoring**:
-  - Cross-platform disk space monitoring
-    - Windows: C: drive (home directory in Codespaces)
-    - macOS: Root volume (/)
-    - Linux: Root filesystem (workspace root in Codespaces)
-  - Shows used and total space in GB
-  - Disk usage percentage
-  - 1-minute moving average
+1. Creates a right-aligned status bar item.
+2. Samples aggregate CPU usage from OS CPU time deltas.
+3. Reads memory usage from the operating system.
+4. Samples disk usage with a platform-aware monitor path.
+5. Adds each sample to a fixed-size rolling history.
+6. Updates the status bar text and hover tooltip.
 
-- **Visual Integration**:
-  - Clean status bar integration
-  - Right-aligned placement
-  - Non-intrusive display
-  - Interactive status bar item:
-    - Current CPU, memory, and disk metrics
-    - 1-minute average values
-    - Regular 2.5-second updates (5 seconds when window is not focused)
-    - Click to copy metrics in Markdown format
+Clicking the status bar item refreshes disk usage, writes a Markdown report to the clipboard, and shows a short confirmation message.
 
-- **Clipboard Integration**:
-  - Copy system metrics with a single click
-  - Well-formatted Markdown output
-  - Includes timestamps for reference
-  - Temporary notification with auto-dismiss
+## Status Bar & Clipboard
+
+The status bar displays CPU usage:
+
+```text
+CPU: 05%
+```
+
+Hover over the status bar item to see current metrics:
+
+```text
+Current
+
+---
+
+CPU Usage: 05% @ 2400 MHz
+
+Memory Usage: 1024 MB / 2048 MB (50%)
+
+Disk Usage (C:): 150 GB / 500 GB (30%)
+```
+
+Click the status bar item to copy Markdown:
+
+```markdown
+# System Metrics (2026/06/28 14:00:00)
+
+## Current Status
+- **CPU Usage:** 05% @ 2400 MHz
+- **Memory Usage:** 1024 MB / 2048 MB (50%)
+- **Disk Usage (C:):** 150 GB / 500 GB (30%)
+
+## 1-Minute Average
+- **CPU:** 04%
+- **Memory:** 49%
+- **Disk:** 30%
+```
+
+## Disk Targets
+
+| Environment | Monitored path |
+| --- | --- |
+| Windows | `C:\` |
+| Windows Codespaces | home directory |
+| macOS | `/` |
+| Linux | `/` |
+| Linux Codespaces | workspace folder from `CODESPACE_VSCODE_FOLDER`, falling back to `/` |
+
+Disk values are shown in GB. If a platform cannot provide disk statistics, otak-monitor keeps the last known values and avoids repeated error spam.
+
+## Security & Privacy
+
+otak-monitor is designed for local development environments where system metrics should stay on the machine.
+
+- **100% local sampling**: CPU, memory, and disk data are collected through local OS APIs.
+- **Zero network access**: metrics are never uploaded or transmitted.
+- **No telemetry**: no analytics, usage tracking, or external calls.
+- **No account or API key**: nothing to sign in to, nothing to provision.
+- **Settings-safe**: it does not change your VS Code configuration.
+- **Open source, MIT-licensed**: the implementation is auditable on [GitHub](https://github.com/tsuyoshi-otake/otak-monitor).
+
+## Language Support
+
+VS Code package metadata, including the extension description and copy command title, follows your VS Code display language:
+
+**English** · 日本語 · 简体中文 · 繁體中文 · 한국어 · Tiếng Việt · Español · Português (BR) · Français · Deutsch · हिन्दी · Bahasa Indonesia · Italiano · Русский · العربية · Türkçe
+
+The README is maintained in English only.
 
 ## Requirements
 
-- Visual Studio Code ^1.90.0
-- Supported environments:
-  - Local: Windows, macOS, Linux
-  - Remote: GitHub Codespaces
+- VS Code **1.90.0** or newer
+- Windows, macOS, Linux, or GitHub Codespaces
+- A VS Code window with the status bar visible
 
 ## Installation
 
-1. Install the extension from VS Code Marketplace
-2. Look for the CPU usage display in your status bar
-3. Hover over it to see detailed system information
-4. Click to copy current metrics in Markdown format
+Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-monitor), or run:
 
-## Status Bar Display
-
-The extension shows the following information in your status bar:
-
-```
-CPU: 45.3%  // CPU usage
+```text
+ext install odangoo.otak-monitor
 ```
 
-Hover over the status bar to see detailed information:
-```
-Current:
+<details>
+<summary><strong>Build from source (VSIX)</strong></summary>
 
----
-
-CPU Usage: 45.3% (2400 MHz)
-Memory Usage: 1024 MB / 2048 MB (50.0%)
-Disk Usage: 150 GB / 500 GB (30.0%)
+```bash
+npm install
+npm run package
+code --install-extension otak-monitor-1.2.5.vsix
 ```
 
-Click the status bar item to copy metrics in Markdown format:
-```markdown
-# System Metrics (2024-02-24 14:00:00)
+Reload VS Code afterwards to activate the extension.
 
-## Current Status
-- **CPU Usage:** 45.3% @ 2400 MHz
-- **Memory Usage:** 1024 MB / 2048 MB (50.0%)
-- **Disk Usage (C:):** 150 GB / 500 GB (30.0%)
+</details>
 
-## 1-Minute Average
-- **CPU:** 44.8%
-- **Memory:** 49.5%
-- **Disk:** 30.0%
-```
+## Troubleshooting
 
-Note: For disk usage, the monitored path varies by environment:
-- Windows:
-  - Local: C: drive
-  - Codespaces: Home directory
-- macOS: Root volume (/)
-- Linux:
-  - Local: Root filesystem (/)
-  - Codespaces: Workspace root
-
-## Implementation Details
-
-- CPU usage is calculated by comparing idle and total CPU time differences
-- Memory values are shown in MB and percentage
-- Disk usage monitoring adapts to the environment:
-  - Local machines: Monitors system root or C: drive
-  - Codespaces: Monitors relevant workspace paths
-- Moving averages are calculated using 24 data points (2.5-second intervals over 1 minute)
-- Updates occur every 2.5 seconds (5 seconds when window is not focused) for efficient monitoring
-- Minimal performance impact on the system
-
-## GitHub Codespaces Support
-
-The extension automatically detects when running in GitHub Codespaces and adjusts its behavior:
-- Monitors the workspace root directory in Linux environments
-- Uses home directory for Windows-based Codespaces
-- Maintains consistent monitoring experience across all environments
-- Provides accurate disk usage information for containerized development
+- **CPU shows `00%` immediately after startup**: the first sample establishes the CPU baseline; wait for the next update.
+- **Disk usage shows `0 GB` or stale values**: the current environment may not expose filesystem stats for the monitored path.
+- **The copy command fails**: confirm VS Code clipboard access is available, then try clicking the status bar item again.
+- **The status bar item is hidden**: confirm the VS Code status bar is visible and no layout customization is hiding right-aligned items.
 
 ## Related Extensions
-Check out our other VS Code extensions.
 
-### [otak-monitor](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-monitor)
-Real-time system monitoring in VS Code. Track CPU, memory, and disk usage through the status bar with comprehensive tooltips and 1-minute averages.
+More VS Code extensions by [odangoo](https://marketplace.visualstudio.com/publishers/odangoo):
 
-### [otak-proxy](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-proxy)
-One-click proxy configuration for VS Code and Git. Perfect for environments where network settings change frequently.
-
-### [otak-committer](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-committer)
-Intelligent SCM operations with AI support. Features multilingual commit message generation (25 languages supported) and upcoming PR management capabilities.
-
-### [otak-restart](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-restart)
-Quick restart operations for Extension Host and VS Code window via status bar tooltip. Streamlines your development workflow.
-
-### [otak-clock](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-clock)
-Display date and time for two time zones from around the world in VS Code. Essential for working across different time zones.
-
-### [otak-pomodoro](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-pomodoro)
-Enhance your productivity with this Pomodoro Timer extension. Helps balance focused work sessions with refreshing breaks using the Pomodoro Technique.
-
-### [otak-zen](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-zen)
-Experience a distraction-free workflow with otak-zen. This extension transforms your VS Code interface into a minimalist environment by hiding non-essential UI elements, allowing you to focus solely on coding. Customize which components to show or hide, and toggle zen mode quickly via commands or the status bar.
+| Extension | Description |
+| --- | --- |
+| [**otak-paste**](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-paste) | Paste optimized screenshots into Markdown and keep repositories lighter |
+| [**otak-proxy**](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-proxy) | One-click proxy switching for VS Code, Git, npm, and integrated terminals |
+| [**otak-committer**](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-committer) | AI-assisted commit messages, pull requests, and issues |
+| [**otak-clipboard**](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-clipboard) | Copy a folder or the current tab to your clipboard in two clicks |
+| [**otak-clock**](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-clock) | Dual time-zone clock for the status bar |
+| [**otak-pomodoro**](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-pomodoro) | A Pomodoro focus timer built into VS Code |
+| [**otak-restart**](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-restart) | Quick Extension Host and window restart from the status bar |
+| [**otak-zen**](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-zen) | A calm, distraction-free Zen mode for VS Code |
+| [**otak-lsp**](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-lsp) | Japanese morphological analysis with grammar checks, semantic highlights, and hovers |
+| [**otak-usage**](https://marketplace.visualstudio.com/items?itemName=odangoo.otak-usage) | At-a-glance usage statistics for VS Code |
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Released under the [MIT License](LICENSE).
 
----
-
-For more information, visit the [GitHub repository](https://github.com/tsuyoshi-otake/otak-monitor).
+<div align="center">
+<br>
+<sub>Built by <a href="https://github.com/tsuyoshi-otake">tsuyoshi-otake</a> · <a href="https://marketplace.visualstudio.com/items?itemName=odangoo.otak-monitor">Marketplace</a> · <a href="https://github.com/tsuyoshi-otake/otak-monitor">GitHub</a> · <a href="https://github.com/tsuyoshi-otake/otak-monitor/issues">Issues</a></sub>
+</div>

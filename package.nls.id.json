@@ -1,0 +1,4 @@
+{
+  "extension.description": "Otak Monitor menampilkan penggunaan CPU, memori, dan disk secara real-time di bilah status VS Code, dengan tooltip detail dan snapshot Markdown ke clipboard.",
+  "command.copyMetrics.title": "Salin Metrik Sistem"
+}

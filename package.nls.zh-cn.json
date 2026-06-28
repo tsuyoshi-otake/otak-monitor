@@ -1,0 +1,4 @@
+{
+  "extension.description": "Otak Monitor 在 VS Code 状态栏中实时显示 CPU、内存和磁盘使用情况，并提供详细悬停提示和 Markdown 剪贴板快照。",
+  "command.copyMetrics.title": "复制系统指标"
+}

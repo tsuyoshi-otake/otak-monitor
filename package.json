@@ -1,11 +1,11 @@
 {
   "name": "otak-monitor",
   "displayName": "otak-monitor",
-  "description": "Otak Monitor displays real-time CPU, memory, and disk usage in VSCode, providing comprehensive system monitoring through the status bar and detailed tooltip.",
-  "version": "1.2.4",
+  "description": "%extension.description%",
+  "version": "1.2.5",
   "publisher": "odangoo",
   "license": "MIT",
-  "icon": "./images/icon.png",
+  "icon": "images/otak-monitor-icon-128.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/tsuyoshi-otake/otak-monitor"
@@ -28,7 +28,7 @@
     "commands": [
       {
         "command": "otak-monitor.copyMetrics",
-        "title": "Copy System Metrics",
+        "title": "%command.copyMetrics.title%",
         "category": "Otak Monitor"
       }
     ]

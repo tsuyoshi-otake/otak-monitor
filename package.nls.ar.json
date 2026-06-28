@@ -1,0 +1,4 @@
+{
+  "extension.description": "يعرض Otak Monitor استخدام المعالج والذاكرة والقرص في الوقت الفعلي في شريط حالة VS Code مع تلميحات تفصيلية ولقطات Markdown للحافظة.",
+  "command.copyMetrics.title": "نسخ مقاييس النظام"
+}

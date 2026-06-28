@@ -1,0 +1,4 @@
+{
+  "extension.description": "Otak Monitor 會在 VS Code 狀態列即時顯示 CPU、記憶體與磁碟使用量，並提供詳細提示與 Markdown 剪貼簿快照。",
+  "command.copyMetrics.title": "複製系統指標"
+}

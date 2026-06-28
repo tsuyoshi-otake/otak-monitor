@@ -1,0 +1,4 @@
+{
+  "extension.description": "Otak Monitor mostra o uso de CPU, memória e disco em tempo real na barra de status do VS Code, com dicas detalhadas e snapshots Markdown na área de transferência.",
+  "command.copyMetrics.title": "Copiar métricas do sistema"
+}

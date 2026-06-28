@@ -2,6 +2,13 @@
 
 All notable changes to the "otak-monitor" extension will be documented in this file.
 
+## [1.2.5] - 2026-06-28
+
+### Changed
+- Replaced the Marketplace icon with the new otak-monitor icon asset.
+- Updated the README using the current otak-paste documentation structure.
+- Localized VS Code package metadata for the extension description and copy command title.
+
 ## [1.2.4] - 2026-06-10
 
 ### Changed

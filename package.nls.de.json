@@ -1,0 +1,4 @@
+{
+  "extension.description": "Otak Monitor zeigt CPU-, Arbeitsspeicher- und Festplattenauslastung in Echtzeit in der VS Code-Statusleiste mit detaillierten Tooltips und Markdown-Zwischenablage-Snapshots.",
+  "command.copyMetrics.title": "Systemmetriken kopieren"
+}

@@ -1,0 +1,4 @@
+{
+  "extension.description": "Otak Monitor hiển thị mức sử dụng CPU, bộ nhớ và ổ đĩa theo thời gian thực trên thanh trạng thái VS Code, kèm tooltip chi tiết và ảnh chụp Markdown trong clipboard.",
+  "command.copyMetrics.title": "Sao chép chỉ số hệ thống"
+}
