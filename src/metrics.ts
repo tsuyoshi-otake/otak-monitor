@@ -1,10 +1,20 @@
 import { AverageMetrics, RollingMetricsHistory } from './rollingAverage';
-import { CpuMetrics, CpuSampler, DiskMetrics, DiskSampler, MemoryMetrics, MemorySampler } from './samplers';
+import {
+    CpuMetrics,
+    CpuSampler,
+    DiskMetrics,
+    DiskSampler,
+    MemoryMetrics,
+    MemorySampler,
+    WorkspaceSizeMetrics,
+    WorkspaceSizeSampler
+} from './samplers';
 
 export interface MetricsSnapshot {
     cpu: CpuMetrics;
     memory: MemoryMetrics;
     disk: DiskMetrics;
+    workspace: WorkspaceSizeMetrics;
     averages: AverageMetrics;
 }
 
@@ -15,6 +25,7 @@ export class MetricsCollector {
         private readonly cpuSampler: CpuSampler = new CpuSampler(),
         private readonly memorySampler: MemorySampler = new MemorySampler(),
         private readonly diskSampler: DiskSampler = new DiskSampler(),
+        private readonly workspaceSizeSampler: WorkspaceSizeSampler = new WorkspaceSizeSampler(),
         historyLength: number = 24
     ) {
         this.metricsHistory = new RollingMetricsHistory(historyLength);
@@ -36,10 +47,11 @@ export class MetricsCollector {
         return this.metricsHistory.getAverages();
     }
 
-    public getAllMetrics(options: { refreshDisk?: boolean } = {}): MetricsSnapshot {
+    public async getAllMetrics(options: { refreshDisk?: boolean; refreshWorkspace?: boolean } = {}): Promise<MetricsSnapshot> {
         const cpu = this.getCPUInfo();
         const memory = this.getMemoryUsage();
         const disk = this.getDiskUsage(options.refreshDisk ?? false);
+        const workspace = await this.workspaceSizeSampler.getWorkspaceSize(options.refreshWorkspace ?? false);
 
         this.metricsHistory.add({
             cpuUsage: cpu.usage,
@@ -51,6 +63,7 @@ export class MetricsCollector {
             cpu,
             memory,
             disk,
+            workspace,
             averages: this.getAverageMetrics()
         };
     }

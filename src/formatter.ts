@@ -3,6 +3,23 @@ import * as vscode from 'vscode';
 import { MetricsSnapshot } from './metrics';
 
 export class MetricsFormatter {
+    public static formatBytes(bytes: number | undefined): string {
+        if (bytes === undefined) {
+            return 'N/A';
+        }
+
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        let value = bytes;
+        let unitIndex = 0;
+        while (value >= 1024 && unitIndex < units.length - 1) {
+            value /= 1024;
+            unitIndex++;
+        }
+
+        const precision = unitIndex === 0 ? 0 : 2;
+        return `${value.toFixed(precision)} ${units[unitIndex]}`;
+    }
+
     public static getDiskLabel(): string {
         switch (os.platform()) {
             case 'win32':
@@ -33,8 +50,9 @@ export class MetricsFormatter {
             `Memory Usage: ${metrics.memory.used} MB / ${metrics.memory.total} MB (${metrics.memory.usagePercent}%)\n\n`
         );
         mdTooltip.appendMarkdown(
-            `${this.getDiskLabel()}: ${metrics.disk.total - metrics.disk.free} GB / ${metrics.disk.total} GB (${metrics.disk.usagePercent}%)`
+            `${this.getDiskLabel()}: ${metrics.disk.total - metrics.disk.free} GB / ${metrics.disk.total} GB (${metrics.disk.usagePercent}%)\n\n`
         );
+        mdTooltip.appendMarkdown(`Current Directory Size: ${this.formatBytes(metrics.workspace.bytes)}`);
 
         return mdTooltip;
     }
@@ -50,6 +68,7 @@ export class MetricsFormatter {
             `- **CPU Usage:** ${cpuDisplay}% @ ${metrics.cpu.speed} MHz`,
             `- **Memory Usage:** ${metrics.memory.used} MB / ${metrics.memory.total} MB (${metrics.memory.usagePercent}%)`,
             `- **${this.getDiskLabel()}:** ${metrics.disk.total - metrics.disk.free} GB / ${metrics.disk.total} GB (${metrics.disk.usagePercent}%)`,
+            `- **Current Directory Size:** ${this.formatBytes(metrics.workspace.bytes)}`,
             '',
             '## 1-Minute Average',
             `- **CPU:** ${metrics.averages.cpuAvg.toString().padStart(2, '0')}%`,

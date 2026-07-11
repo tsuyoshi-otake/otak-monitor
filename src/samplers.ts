@@ -24,6 +24,11 @@ export interface DiskMetrics {
     usagePercent: number;
 }
 
+export interface WorkspaceSizeMetrics {
+    path?: string;
+    bytes?: number;
+}
+
 const DEFAULT_DISK_METRICS: DiskMetrics = { free: 0, total: 0, usagePercent: 0 };
 
 export class CpuSampler {
@@ -150,5 +155,73 @@ export class DiskSampler {
         }
 
         return this.cachedMetrics;
+    }
+}
+
+export class WorkspaceSizeSampler {
+    private cachedMetrics: WorkspaceSizeMetrics = {};
+    private lastSampleAt = 0;
+    private inFlight: Promise<WorkspaceSizeMetrics> | undefined;
+
+    constructor(
+        private readonly workspacePathProvider: () => string | undefined = () => process.cwd(),
+        private readonly now: () => number = Date.now,
+        private readonly sampleIntervalMs: number = 60000
+    ) {}
+
+    async getWorkspaceSize(forceRefresh: boolean = false): Promise<WorkspaceSizeMetrics> {
+        const workspacePath = this.workspacePathProvider();
+        if (!workspacePath) {
+            this.cachedMetrics = {};
+            return this.cachedMetrics;
+        }
+
+        const currentTime = this.now();
+        if (!forceRefresh && this.cachedMetrics.path === workspacePath &&
+            this.lastSampleAt > 0 && currentTime - this.lastSampleAt < this.sampleIntervalMs) {
+            return this.cachedMetrics;
+        }
+
+        if (this.inFlight) {
+            return this.inFlight;
+        }
+
+        this.inFlight = this.measure(workspacePath, currentTime);
+        try {
+            return await this.inFlight;
+        } finally {
+            this.inFlight = undefined;
+        }
+    }
+
+    private async measure(workspacePath: string, sampledAt: number): Promise<WorkspaceSizeMetrics> {
+        const bytes = await this.calculateDirectorySize(workspacePath);
+        this.cachedMetrics = { path: workspacePath, bytes };
+        this.lastSampleAt = sampledAt;
+        return this.cachedMetrics;
+    }
+
+    private async calculateDirectorySize(directoryPath: string): Promise<number> {
+        let total = 0;
+
+        try {
+            const directory = await fs.promises.opendir(directoryPath);
+            for await (const entry of directory) {
+                const entryPath = path.join(directoryPath, entry.name);
+                try {
+                    if (entry.isDirectory()) {
+                        total += await this.calculateDirectorySize(entryPath);
+                    } else if (entry.isFile()) {
+                        total += (await fs.promises.stat(entryPath)).size;
+                    }
+                } catch {
+                    // Files can disappear or become unreadable while a workspace is scanned.
+                }
+            }
+        } catch {
+            // Return the readable portion instead of failing the metrics update.
+        }
+
+        return total;
     }
 }
