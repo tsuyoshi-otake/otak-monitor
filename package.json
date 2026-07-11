@@ -2,7 +2,7 @@
   "name": "otak-monitor",
   "displayName": "otak-monitor",
   "description": "%extension.description%",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "publisher": "odangoo",
   "license": "MIT",
   "icon": "images/otak-monitor-icon-128.png",

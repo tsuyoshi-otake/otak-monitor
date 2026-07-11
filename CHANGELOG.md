@@ -2,7 +2,7 @@
 
 All notable changes to the "otak-monitor" extension will be documented in this file.
 
-## [Unreleased]
+## [1.2.6] - 2026-07-11
 
 ### Added
 - Display the current workspace directory size below disk usage in tooltips and copied metrics.
