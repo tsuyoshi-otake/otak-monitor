@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { MetricsCollector, MetricsSnapshot } from './metrics';
 import { MetricsFormatter } from './formatter';
+import { WorkspaceSizeSampler } from './samplers';
 
 const UPDATE_INTERVAL = 2500;
 
@@ -13,13 +14,19 @@ export function activate(context: vscode.ExtensionContext) {
 export function deactivate() {}
 
 class MonitorController implements vscode.Disposable {
-    private readonly metricsCollector = new MetricsCollector();
+    private readonly metricsCollector = new MetricsCollector(
+        undefined,
+        undefined,
+        undefined,
+        new WorkspaceSizeSampler(() => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath)
+    );
     private readonly statusBarItem = vscode.window.createStatusBarItem(
         vscode.StatusBarAlignment.Right,
         100
     );
     private timer: NodeJS.Timeout | undefined;
     private latestMetrics: MetricsSnapshot | undefined;
+    private updateInFlight = false;
 
     start(context: vscode.ExtensionContext): void {
         this.statusBarItem.command = 'otak-monitor.copyMetrics';
@@ -35,7 +42,7 @@ class MonitorController implements vscode.Disposable {
             this.startTimer();
         }, null, context.subscriptions);
 
-        this.updateStatus();
+        void this.updateStatus();
         this.startTimer();
     }
 
@@ -46,7 +53,10 @@ class MonitorController implements vscode.Disposable {
 
     private async copyMetrics(): Promise<void> {
         try {
-            const metrics = this.metricsCollector.getAllMetrics({ refreshDisk: true });
+            const metrics = await this.metricsCollector.getAllMetrics({
+                refreshDisk: true,
+                refreshWorkspace: true
+            });
             this.latestMetrics = metrics;
             this.statusBarItem.tooltip = MetricsFormatter.createTooltip(metrics);
             await vscode.env.clipboard.writeText(MetricsFormatter.createClipboardText(metrics));
@@ -61,7 +71,7 @@ class MonitorController implements vscode.Disposable {
     private startTimer(): void {
         this.stopTimer();
         this.timer = setInterval(() => {
-            this.updateStatus();
+            void this.updateStatus();
         }, this.getEffectiveInterval()) as NodeJS.Timeout;
     }
 
@@ -76,10 +86,21 @@ class MonitorController implements vscode.Disposable {
         return vscode.window.state.focused ? UPDATE_INTERVAL : UPDATE_INTERVAL * 2;
     }
 
-    private updateStatus(): void {
-        this.latestMetrics = this.metricsCollector.getAllMetrics();
-        this.statusBarItem.text = MetricsFormatter.getStatusBarText(this.latestMetrics.cpu.usage);
-        this.statusBarItem.tooltip = MetricsFormatter.createTooltip(this.latestMetrics);
-        this.statusBarItem.show();
+    private async updateStatus(): Promise<void> {
+        if (this.updateInFlight) {
+            return;
+        }
+
+        this.updateInFlight = true;
+        try {
+            this.latestMetrics = await this.metricsCollector.getAllMetrics();
+            this.statusBarItem.text = MetricsFormatter.getStatusBarText(this.latestMetrics.cpu.usage);
+            this.statusBarItem.tooltip = MetricsFormatter.createTooltip(this.latestMetrics);
+            this.statusBarItem.show();
+        } catch (error) {
+            console.error('Failed to update system metrics:', error);
+        } finally {
+            this.updateInFlight = false;
+        }
     }
 }

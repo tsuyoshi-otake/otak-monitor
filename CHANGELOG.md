@@ -2,6 +2,12 @@
 
 All notable changes to the "otak-monitor" extension will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- Display the current workspace directory size below disk usage in tooltips and copied metrics.
+- Publish tagged releases to the Open VSX Registry in addition to Visual Studio Marketplace.
+
 ## [1.2.5] - 2026-06-28
 
 ### Changed
