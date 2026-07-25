@@ -1,4 +1,9 @@
 {
   "extension.description": "Otak Monitor は、VS Code のステータスバーに CPU、メモリ、ディスク使用率をリアルタイム表示し、詳細ツールチップと Markdown 形式のクリップボードスナップショットを提供します。",
-  "command.copyMetrics.title": "システムメトリクスをコピー"
+  "command.copyMetrics.title": "システムメトリクスをコピー",
+  "command.cycleStatusBarView.title": "ステータスバーの表示項目を切り替え",
+  "config.cpu.showRunningClock": "定格クロックではなく、プロセッサが実際に動作しているクロックを表示します。Windows と Linux で利用できます。",
+  "config.cpu.showTemperature": "読み取り可能なセンサーがある場合に CPU 温度を表示します。センサーがない環境では、行もステータスバーの表示項目も出ません。",
+  "config.folderSize.enabled": "開いているフォルダーのサイズを計測します。オフにするとディレクトリ走査自体を行いません。オンアクセス型のウイルス対策ソフトで負荷が大きい環境では有効な選択肢です。",
+  "config.folderSize.excludeNames": "フォルダーサイズの計測から除外するディレクトリ名です (例: `node_modules`、`.git`)。ツリーのどこにあっても除外され、走査もされません。"
 }

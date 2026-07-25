@@ -2,6 +2,24 @@
 
 All notable changes to the "otak-monitor" extension will be documented in this file.
 
+## [1.3.0] - 2026-07-26
+
+### Added
+- Report the clock the processor is actually running at instead of the nominal clock `os.cpus()` reports and never moves off: base clock × `% Processor Performance` from WMI on Windows, `scaling_cur_freq` (falling back to `/proc/cpuinfo`) on Linux, and `sysctl hw.cpufrequency` on macOS. The nominal clock is named beside it only when the two differ (#8).
+- Report the CPU temperature where the machine exposes a readable sensor — an ACPI thermal zone on Windows, the hottest processor `thermal_zone` on Linux. Machines without one, macOS included, get no row and no status bar reading rather than a zero (#9).
+- Switch the status bar reading by clicking it: CPU usage, temperature, memory, disk, and folder size. Readings the machine cannot take are skipped, and the chosen one is remembered between sessions (#10).
+- Name the processor in the tooltip and in the Markdown summary, tidying what the OS reports and leaving the line out where the machine reports a placeholder rather than a name (#13).
+- Add **Copy Summary**, **Switch Reading**, and **Settings** links to the tooltip, matching otak-usage (#11).
+- Add `otakMonitor.cpu.showRunningClock`, `otakMonitor.cpu.showTemperature`, `otakMonitor.folderSize.enabled`, and `otakMonitor.folderSize.excludeNames`, with descriptions in all 16 display languages.
+
+### Changed
+- Take the platform readings in one long-lived process rather than one per sample, run it only in the window that samples for the machine, and stop it when that window is gone (#8, #9).
+- Stop measuring the folder size in a window that is not in front, and hand that folder's lease back so a window that is picks the measurement up. Every request the walk does not make is one an on-access virus scanner does not inspect, and the size is only ever read from a tooltip a background window cannot show (#12).
+- Skip the directory names listed in `otakMonitor.folderSize.excludeNames` entirely — they are neither measured nor walked — and measure the folder again from scratch when that list changes (#12).
+
+### Fixed
+- Leave a reading the machine could not take out of the CPU metrics entirely instead of carrying it as an undefined value. Readings are published to the other windows as JSON, which drops an undefined value, so a window that sampled held a different object from one that read the published copy (#8).
+
 ## [1.2.8] - 2026-07-26
 
 ### Changed

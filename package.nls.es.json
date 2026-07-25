@@ -1,4 +1,9 @@
 {
   "extension.description": "Otak Monitor muestra el uso de CPU, memoria y disco en tiempo real en la barra de estado de VS Code, con información detallada y capturas Markdown en el portapapeles.",
-  "command.copyMetrics.title": "Copiar métricas del sistema"
+  "command.copyMetrics.title": "Copiar métricas del sistema",
+  "command.cycleStatusBarView.title": "Cambiar la lectura de la barra de estado",
+  "config.cpu.showRunningClock": "Mostrar la frecuencia a la que el procesador funciona realmente en lugar de su frecuencia nominal. Disponible en Windows y Linux.",
+  "config.cpu.showTemperature": "Mostrar la temperatura de la CPU cuando el equipo expone un sensor legible. Donde no lo hace, se ocultan la fila y la lectura de la barra de estado.",
+  "config.folderSize.enabled": "Medir el tamaño de la carpeta abierta. Al desactivarlo se evita por completo el recorrido del directorio, lo que conviene cuando un antivirus en tiempo real lo encarece.",
+  "config.folderSize.excludeNames": "Nombres de directorios que quedan fuera del tamaño de la carpeta, aparezcan donde aparezcan en el árbol; por ejemplo `node_modules` o `.git`. Los directorios excluidos nunca se recorren."
 }

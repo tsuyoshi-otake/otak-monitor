@@ -1,6 +1,7 @@
 import * as os from 'os';
 import * as fs from 'fs';
 import * as path from 'path';
+import { CpuSensorReading } from './cpuSensor';
 
 export interface CPUTime {
     idle: number;
@@ -9,7 +10,14 @@ export interface CPUTime {
 
 export interface CpuMetrics {
     usage: number;
+    /** What the processor calls itself, where the OS reports a usable name. */
+    model?: string;
+    /** The nominal clock the OS reports, in MHz. Present on every platform. */
     speed: number;
+    /** The clock the processor is running at, where the platform exposes it. */
+    currentSpeed?: number;
+    /** Package temperature in degrees Celsius, where the platform exposes it. */
+    temperatureC?: number;
 }
 
 export interface MemoryMetrics {
@@ -104,7 +112,15 @@ class ConcurrencyGate {
 export class CpuSampler {
     private previousCPUTime: CPUTime | null = null;
 
-    constructor(private readonly cpuProvider: () => os.CpuInfo[] = os.cpus) {}
+    constructor(
+        private readonly cpuProvider: () => os.CpuInfo[] = os.cpus,
+        /**
+         * What the platform sensor last reported, if one is running. It is read
+         * rather than awaited so a sensor that is slow, stopped or unsupported
+         * costs an update nothing.
+         */
+        private readonly sensorProvider: () => CpuSensorReading = () => ({})
+    ) {}
 
     /**
      * Drop the baseline. Usage is the difference between two readings, so a
@@ -126,10 +142,9 @@ export class CpuSampler {
             totalTick += times.user + times.nice + times.sys + times.idle + times.irq;
         }
 
-        const speed = cpus[0]?.speed ?? 0;
         if (this.previousCPUTime === null) {
             this.previousCPUTime = { idle: totalIdle, total: totalTick };
-            return { usage: 0, speed };
+            return this.compose(0, cpus[0]);
         }
 
         const idleDiff = totalIdle - this.previousCPUTime.idle;
@@ -138,11 +153,48 @@ export class CpuSampler {
 
         this.previousCPUTime = { idle: totalIdle, total: totalTick };
 
-        return {
-            usage: Math.round(cpuUsage),
-            speed
-        };
+        return this.compose(Math.round(cpuUsage), cpus[0]);
     }
+
+    /**
+     * Put the reading together, leaving out whatever this machine could not
+     * measure. Absent has to mean the key is missing rather than present and
+     * undefined: these readings are published to the other windows as JSON,
+     * which drops an undefined value, and a window that sampled would otherwise
+     * hold a different object from one that read the published copy.
+     */
+    private compose(usage: number, cpu: os.CpuInfo | undefined): CpuMetrics {
+        // The nominal clock. On Windows it is all `os.cpus()` ever reports, and
+        // on Apple silicon it is not the processor's clock at all, so it is the
+        // fallback rather than the answer wherever a sensor has a better one.
+        const metrics: CpuMetrics = { usage, speed: cpu?.speed ?? 0 };
+
+        const model = cleanCpuModel(cpu?.model);
+        if (model !== undefined) {
+            metrics.model = model;
+        }
+        const { currentSpeed, temperatureC } = this.sensorProvider();
+        if (currentSpeed !== undefined) {
+            metrics.currentSpeed = currentSpeed;
+        }
+        if (temperatureC !== undefined) {
+            metrics.temperatureC = temperatureC;
+        }
+        return metrics;
+    }
+}
+
+/**
+ * The processor's name, as something worth putting in a tooltip. What the OS
+ * reports is padded and doubly spaced on the machines that pad it at all, and on
+ * the ones that know nothing it is a placeholder rather than a name.
+ */
+export function cleanCpuModel(raw: string | undefined): string | undefined {
+    const model = (raw ?? '').replace(/\s+/g, ' ').trim();
+    if (model === '' || /^unknown$/i.test(model)) {
+        return undefined;
+    }
+    return model;
 }
 
 export class MemorySampler {
@@ -279,13 +331,24 @@ export class WorkspaceSizeSampler {
     private memoizedPath = '';
     private lastFullScanAt = 0;
     private readonly gate = new ConcurrencyGate(WALK_CONCURRENCY);
+    /** Directory names not to descend into, and the key that identifies them. */
+    private excluded: ReadonlySet<string> = new Set();
+    private excludedKey = '';
 
     constructor(
         private readonly workspacePathProvider: () => string | undefined = () => process.cwd(),
         private readonly now: () => number = Date.now,
         private readonly sampleIntervalMs: number = WORKSPACE_SAMPLE_INTERVAL_MS,
         private readonly fullScanIntervalMs: number = WORKSPACE_FULL_SCAN_INTERVAL_MS,
-        private readonly memoCostThreshold: number = MEMO_COST_THRESHOLD
+        private readonly memoCostThreshold: number = MEMO_COST_THRESHOLD,
+        /**
+         * Directory names to leave unmeasured, wherever in the tree they turn
+         * up. Every request the walk does not make is one an on-access virus
+         * scanner does not see, and the folders worth leaving out — build
+         * output, dependency trees — are both the largest and the least
+         * interesting part of the total.
+         */
+        private readonly excludedNamesProvider: () => readonly string[] = () => []
     ) {}
 
     /** The measurement in progress, if any. */
@@ -394,9 +457,27 @@ export class WorkspaceSizeSampler {
         }
     }
 
+    /**
+     * Take up the exclusions in force now, and say whether they changed. A
+     * change makes every remembered total wrong in one direction or the other,
+     * so it costs a full walk — which is why it is read once per measurement
+     * rather than once per directory.
+     */
+    private refreshExclusions(): boolean {
+        const names = this.excludedNamesProvider().map((name) => name.trim()).filter((name) => name !== '');
+        const key = [...names].sort().join(' ');
+        if (key === this.excludedKey) {
+            return false;
+        }
+        this.excludedKey = key;
+        this.excluded = new Set(names);
+        return true;
+    }
+
     private async measure(workspacePath: string, sampledAt: number, forceFullScan: boolean): Promise<WorkspaceSizeMetrics> {
+        const exclusionsChanged = this.refreshExclusions();
         const staleMemo = sampledAt - this.lastFullScanAt >= this.fullScanIntervalMs;
-        if (forceFullScan || staleMemo || this.pendingOverflow || workspacePath !== this.memoizedPath) {
+        if (forceFullScan || exclusionsChanged || staleMemo || this.pendingOverflow || workspacePath !== this.memoizedPath) {
             // Forget everything and walk it all: this is what catches changes no
             // watcher reported, and drops entries for folders that are gone.
             this.subtotals.clear();
@@ -471,6 +552,9 @@ export class WorkspaceSizeSampler {
             // Symbolic links and junctions are neither: descending through one
             // would leave the workspace, count a tree twice, or loop forever.
             if (entry.isDirectory()) {
+                if (this.excluded.has(entry.name)) {
+                    continue; // left unmeasured on purpose, and never walked
+                }
                 directories.push(entryPath);
             } else if (entry.isFile()) {
                 files.push(entryPath);

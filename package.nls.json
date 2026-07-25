@@ -1,4 +1,9 @@
 {
   "extension.description": "Otak Monitor shows real-time CPU, memory, and disk usage in the VS Code status bar with detailed tooltips and Markdown clipboard snapshots.",
-  "command.copyMetrics.title": "Copy System Metrics"
+  "command.copyMetrics.title": "Copy System Metrics",
+  "command.cycleStatusBarView.title": "Switch Status Bar Reading",
+  "config.cpu.showRunningClock": "Show the clock the processor is actually running at rather than its nominal clock. Available on Windows and Linux.",
+  "config.cpu.showTemperature": "Show the CPU temperature when the machine exposes a readable sensor. The row and the status bar reading are hidden where it does not.",
+  "config.folderSize.enabled": "Measure the size of the open folder. Turning this off stops the directory walk entirely, which is worth doing where an on-access virus scanner makes it expensive.",
+  "config.folderSize.excludeNames": "Directory names to leave out of the folder size, wherever they appear in the tree — for example `node_modules` or `.git`. Excluded directories are never walked."
 }

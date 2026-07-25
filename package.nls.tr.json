@@ -1,4 +1,9 @@
 {
   "extension.description": "Otak Monitor, VS Code durum çubuğunda CPU, bellek ve disk kullanımını gerçek zamanlı gösterir; ayrıntılı ipuçları ve Markdown pano anlık görüntüleri sağlar.",
-  "command.copyMetrics.title": "Sistem metriklerini kopyala"
+  "command.copyMetrics.title": "Sistem metriklerini kopyala",
+  "command.cycleStatusBarView.title": "Durum çubuğundaki ölçümü değiştir",
+  "config.cpu.showRunningClock": "İşlemcinin nominal hızı yerine gerçekte çalıştığı hızı gösterir. Windows ve Linux'ta kullanılabilir.",
+  "config.cpu.showTemperature": "Makine okunabilir bir sensör sunuyorsa CPU sıcaklığını gösterir. Sunmuyorsa hem satır hem de durum çubuğundaki ölçüm gizlenir.",
+  "config.folderSize.enabled": "Açık klasörün boyutunu ölçer. Kapatıldığında dizin taraması hiç yapılmaz; erişim anında tarayan bir antivirüsün maliyetli hale getirdiği ortamlarda işe yarar.",
+  "config.folderSize.excludeNames": "Ağaçta nerede geçerse geçsin klasör boyutunun dışında bırakılacak dizin adları — örneğin `node_modules` veya `.git`. Dışlanan dizinler hiç taranmaz."
 }
