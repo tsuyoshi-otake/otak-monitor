@@ -1,4 +1,9 @@
 {
   "extension.description": "Otak Monitor 在 VS Code 状态栏中实时显示 CPU、内存和磁盘使用情况，并提供详细悬停提示和 Markdown 剪贴板快照。",
-  "command.copyMetrics.title": "复制系统指标"
+  "command.copyMetrics.title": "复制系统指标",
+  "command.cycleStatusBarView.title": "切换状态栏显示项",
+  "config.cpu.showRunningClock": "显示处理器实际运行的频率，而非标称频率。可在 Windows 和 Linux 上使用。",
+  "config.cpu.showTemperature": "当设备提供可读取的传感器时显示 CPU 温度。没有传感器时，该行和状态栏显示项均会隐藏。",
+  "config.folderSize.enabled": "统计当前打开文件夹的大小。关闭后完全不再遍历目录；当实时扫描的杀毒软件使遍历代价高昂时，这样做很值得。",
+  "config.folderSize.excludeNames": "统计文件夹大小时要排除的目录名，无论它们位于目录树的哪一层——例如 `node_modules` 或 `.git`。被排除的目录不会被遍历。"
 }

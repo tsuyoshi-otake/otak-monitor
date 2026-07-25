@@ -33,6 +33,10 @@ export function isMachineSnapshot(raw: unknown): raw is MachineSnapshot {
     const snapshot = raw as MachineSnapshot | undefined;
     return isSnapshotEnvelope(snapshot) &&
         hasFiniteNumbers(snapshot.cpu, ['usage', 'speed']) &&
+        // The sensor readings are absent on the machines that cannot take them,
+        // so missing is legitimate here and anything but a number is not.
+        hasOptionalFiniteNumbers(snapshot.cpu, ['currentSpeed', 'temperatureC']) &&
+        hasOptionalStrings(snapshot.cpu, ['model']) &&
         hasFiniteNumbers(snapshot.memory, ['used', 'total', 'usagePercent']) &&
         hasFiniteNumbers(snapshot.disk, ['free', 'total', 'usagePercent']) &&
         hasFiniteNumbers(snapshot.averages, ['cpuAvg', 'memoryAvg', 'diskAvg']);
@@ -55,6 +59,23 @@ function isSnapshotEnvelope(raw: unknown): raw is { version: number; updatedAtMs
     return !!snapshot && typeof snapshot === 'object' &&
         snapshot.version === SNAPSHOT_VERSION &&
         typeof snapshot.updatedAtMs === 'number' && Number.isFinite(snapshot.updatedAtMs);
+}
+
+function hasOptionalStrings(raw: unknown, keys: string[]): boolean {
+    if (typeof raw !== 'object' || raw === null) {
+        return false;
+    }
+    const record = raw as Record<string, unknown>;
+    return keys.every((key) => record[key] === undefined || typeof record[key] === 'string');
+}
+
+function hasOptionalFiniteNumbers(raw: unknown, keys: string[]): boolean {
+    if (typeof raw !== 'object' || raw === null) {
+        return false;
+    }
+    const record = raw as Record<string, unknown>;
+    return keys.every((key) => record[key] === undefined ||
+        (typeof record[key] === 'number' && Number.isFinite(record[key])));
 }
 
 function hasFiniteNumbers(raw: unknown, keys: string[]): boolean {

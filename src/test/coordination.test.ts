@@ -266,6 +266,35 @@ suite('Coordination Test Suite', () => {
         assert.deepStrictEqual(await fs.promises.readdir(storageDir), []);
     });
 
+    test('a window that is showing nobody the folder size neither walks it nor holds its lease', async () => {
+        const backgroundCollector = createCollector(workspaceDir);
+        const focusedCollector = createCollector(workspaceDir);
+        const wanted = { folderSize: true };
+        const background = new MonitorCoordinator(backgroundCollector, storageDir, () => workspaceDir, {
+            ...coordinatorOptions(),
+            wantsWorkspaceMeasurement: () => wanted.folderSize
+        });
+        const focused = new MonitorCoordinator(focusedCollector, storageDir, () => workspaceDir, coordinatorOptions());
+
+        await background.refresh();
+        assert.strictEqual(background.isWorkspaceLeader, true);
+
+        // The window went to the background, where its tooltip cannot be
+        // hovered. Every request the walk would have made is one an on-access
+        // virus scanner would have inspected for a number nobody can see.
+        wanted.folderSize = false;
+        const walksSoFar = backgroundCollector.workspaceSamples;
+        const metrics = await background.refresh();
+        assert.strictEqual(backgroundCollector.workspaceSamples, walksSoFar);
+        assert.deepStrictEqual(metrics.workspace, {});
+
+        // Handing the lease back is what lets a window that *is* in front pick
+        // the measurement up, rather than leaving it unmeasured everywhere.
+        await focused.refresh();
+        assert.strictEqual(background.isWorkspaceLeader, false);
+        assert.strictEqual(focused.isWorkspaceLeader, true);
+    });
+
     test('a follower takes the cheap readings but never walks the folder', async () => {
         const collector = createCollector(workspaceDir);
         const follower = new MonitorCoordinator(collector, storageDir, () => workspaceDir, coordinatorOptions());

@@ -23,6 +23,13 @@ export interface CoordinatorOptions {
     roleCheckIntervalMs?: number;
     /** Read-back delay when claiming a lease; only tests need to change it. */
     settleMs?: number;
+    /**
+     * Whether the folder size is worth measuring at all right now. It is only
+     * ever read from the tooltip, and the tooltip cannot be hovered in a window
+     * that is not in front — so a window that says no here neither walks the
+     * folder nor holds the lease that would oblige it to.
+     */
+    wantsWorkspaceMeasurement?: () => boolean;
 }
 
 /**
@@ -50,6 +57,7 @@ export class MonitorCoordinator {
     private readonly now: () => number;
     private readonly roleCheckIntervalMs: number;
     private readonly settleMs: number | undefined;
+    private readonly wantsWorkspaceMeasurement: () => boolean;
 
     /** No shared directory, or coordination failed: this window samples for itself. */
     private standalone: boolean;
@@ -83,6 +91,7 @@ export class MonitorCoordinator {
         this.now = options.now ?? Date.now;
         this.roleCheckIntervalMs = options.roleCheckIntervalMs ?? HEARTBEAT_MS;
         this.settleMs = options.settleMs;
+        this.wantsWorkspaceMeasurement = options.wantsWorkspaceMeasurement ?? (() => true);
         this.machineSnapshotPath = this.standalone ? '' : snapshotPathFor(storageDir, MACHINE_SCOPE);
     }
 
@@ -157,7 +166,7 @@ export class MonitorCoordinator {
 
     private async ensureWorkspaceRole(nowMs: number): Promise<void> {
         const workspacePath = this.workspacePathProvider();
-        const scope = workspacePath ? workspaceScope(workspacePath) : '';
+        const scope = this.wantsWorkspaceMeasurement() && workspacePath ? workspaceScope(workspacePath) : '';
         if (scope !== this.workspaceScopeKey) {
             // The window moved to another folder, so its lease no longer covers
             // what it measures. Hand the old one back before taking the new one.
@@ -253,6 +262,12 @@ export class MonitorCoordinator {
     }
 
     private async updateWorkspace(nowMs: number, forceRefresh: boolean): Promise<WorkspaceSizeMetrics> {
+        if (!this.wantsWorkspaceMeasurement()) {
+            // Nothing is displaying it: neither walk the folder nor go looking
+            // for what another window measured. What was last known stands.
+            return this.lastWorkspace;
+        }
+
         const workspacePath = this.workspacePathProvider();
         if (!workspacePath) {
             this.lastWorkspace = {};

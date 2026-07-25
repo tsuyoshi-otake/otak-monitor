@@ -1,4 +1,9 @@
 {
   "extension.description": "Otak Monitor hiển thị mức sử dụng CPU, bộ nhớ và ổ đĩa theo thời gian thực trên thanh trạng thái VS Code, kèm tooltip chi tiết và ảnh chụp Markdown trong clipboard.",
-  "command.copyMetrics.title": "Sao chép chỉ số hệ thống"
+  "command.copyMetrics.title": "Sao chép chỉ số hệ thống",
+  "command.cycleStatusBarView.title": "Chuyển chỉ số trên thanh trạng thái",
+  "config.cpu.showRunningClock": "Hiển thị xung nhịp mà bộ xử lý đang thực sự chạy thay vì xung nhịp danh định. Có trên Windows và Linux.",
+  "config.cpu.showTemperature": "Hiển thị nhiệt độ CPU khi máy cung cấp cảm biến đọc được. Nếu không có, dòng này và chỉ số trên thanh trạng thái sẽ bị ẩn.",
+  "config.folderSize.enabled": "Đo kích thước thư mục đang mở. Tắt đi thì việc duyệt thư mục không diễn ra chút nào — hữu ích khi phần mềm diệt virus quét theo truy cập khiến nó tốn kém.",
+  "config.folderSize.excludeNames": "Tên các thư mục được loại khỏi kích thước thư mục, dù nằm ở đâu trong cây — ví dụ `node_modules` hoặc `.git`. Thư mục đã loại sẽ không bao giờ được duyệt."
 }

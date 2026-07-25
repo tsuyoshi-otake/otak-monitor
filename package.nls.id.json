@@ -1,4 +1,9 @@
 {
   "extension.description": "Otak Monitor menampilkan penggunaan CPU, memori, dan disk secara real-time di bilah status VS Code, dengan tooltip detail dan snapshot Markdown ke clipboard.",
-  "command.copyMetrics.title": "Salin Metrik Sistem"
+  "command.copyMetrics.title": "Salin Metrik Sistem",
+  "command.cycleStatusBarView.title": "Ganti Tampilan Bilah Status",
+  "config.cpu.showRunningClock": "Tampilkan clock yang benar-benar dijalankan prosesor, bukan clock nominalnya. Tersedia di Windows dan Linux.",
+  "config.cpu.showTemperature": "Tampilkan suhu CPU bila mesin menyediakan sensor yang dapat dibaca. Bila tidak, baris dan tampilan bilah statusnya disembunyikan.",
+  "config.folderSize.enabled": "Ukur ukuran folder yang sedang dibuka. Mematikannya menghentikan penelusuran direktori sepenuhnya — berguna bila antivirus on-access membuatnya mahal.",
+  "config.folderSize.excludeNames": "Nama direktori yang dikecualikan dari ukuran folder, di mana pun letaknya dalam pohon — misalnya `node_modules` atau `.git`. Direktori yang dikecualikan tidak pernah ditelusuri."
 }
