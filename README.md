@@ -91,6 +91,8 @@ Measured on this repository (5.4 GB, 9,171 directories, 51,305 files):
 | After editing one file under `src/` | 1 ms |
 | With nothing changed | 0 ms |
 
+Reported changes are collected as they arrive and worked out into re-measurements once, when the next measurement starts. A build reports the same directories thousands of times over, and answering each notification separately is string work for a conclusion that was already reached; collecting them costs one set insertion per notification instead, which takes 10,000 notifications from 63.8 ms to 0.2 ms. Past the point where tracking them costs more than measuring the folder again, the folder is simply measured again.
+
 File change notifications are only a hint about what to measure again — they are never what makes the number correct. VS Code excludes folders such as `node_modules` from watching, and other processes write to the folder without telling anyone, so the whole folder is measured again from scratch every 30 minutes regardless, and clicking the status bar item measures it immediately.
 
 **Virus scanners.** On-access scanners such as Sophos and Microsoft Defender scan when a file's contents are read, not when its metadata is queried. Measuring never opens a file: it lists directories and asks for file attributes with `lstat`, which also means symbolic links and junctions are counted as links instead of being followed out of the workspace. Requests in flight are capped at 8, so the walk never arrives as a burst, and after the first measurement there is usually nothing to walk at all.

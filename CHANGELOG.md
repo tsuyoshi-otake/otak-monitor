@@ -2,6 +2,12 @@
 
 All notable changes to the "otak-monitor" extension will be documented in this file.
 
+## [1.2.8] - 2026-07-26
+
+### Changed
+- Collect reported file changes and work out what they invalidate once, at the next measurement, instead of on every notification, which takes 10,000 notifications from 63.8 ms to 0.2 ms and closes a window where a change reported during a walk could be missed until the next full scan (#6).
+- Measure the whole folder again rather than track more changed paths than are worth listing, so a build or a branch switch costs a fixed amount of memory (#6).
+
 ## [1.2.7] - 2026-07-26
 
 ### Changed

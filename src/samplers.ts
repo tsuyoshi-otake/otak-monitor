@@ -70,6 +70,14 @@ const MEMO_COST_THRESHOLD = 64;
 const MEMO_BUDGET = 512;
 
 /**
+ * How many changed paths are collected before it becomes cheaper to measure the
+ * whole tree again than to work out what each of them invalidates. A build or a
+ * branch switch reports far more than this, and past that point the answer is
+ * the same either way.
+ */
+const MAX_PENDING_CHANGES = 4096;
+
+/**
  * Lets a bounded number of operations run at once. Used to keep the number of
  * filesystem requests in flight fixed no matter how the walk fans out.
  */
@@ -263,6 +271,10 @@ export class WorkspaceSizeSampler {
     private readonly subtotals = new Map<string, number>();
     /** Remembered subtrees that a change has invalidated. */
     private readonly invalidated = new Set<string>();
+    /** Paths reported as changed, not yet worked out into invalidations. */
+    private readonly pendingChanges = new Set<string>();
+    /** Whether more changes were reported than were worth keeping track of. */
+    private pendingOverflow = false;
     /** The workspace the remembered totals belong to. */
     private memoizedPath = '';
     private lastFullScanAt = 0;
@@ -288,10 +300,34 @@ export class WorkspaceSizeSampler {
      * path that is not remembered is measured every time anyway.
      */
     markChanged(changedPath: string): void {
-        if (this.memoizedPath === '' || this.subtotals.size === 0) {
+        if (this.pendingOverflow) {
             return;
         }
 
+        // Only the path is kept. Working out which remembered totals a change
+        // invalidates costs a handful of string operations per level of the
+        // path, and a build reports the same directories thousands of times
+        // over — so it is left until the next measurement, by which point the
+        // set has collapsed the repeats and the work happens once.
+        this.pendingChanges.add(changedPath);
+        if (this.pendingChanges.size > MAX_PENDING_CHANGES) {
+            this.pendingChanges.clear();
+            this.pendingOverflow = true;
+        }
+    }
+
+    /** Works out what the reported changes invalidate, once, before a walk. */
+    private applyPendingChanges(): void {
+        if (this.subtotals.size > 0) {
+            for (const changedPath of this.pendingChanges) {
+                this.invalidateContaining(changedPath);
+            }
+        }
+
+        this.pendingChanges.clear();
+    }
+
+    private invalidateContaining(changedPath: string): void {
         const resolved = path.resolve(changedPath);
         const relative = path.relative(this.memoizedPath, resolved);
         if (relative.startsWith('..') || path.isAbsolute(relative)) {
@@ -360,13 +396,17 @@ export class WorkspaceSizeSampler {
 
     private async measure(workspacePath: string, sampledAt: number, forceFullScan: boolean): Promise<WorkspaceSizeMetrics> {
         const staleMemo = sampledAt - this.lastFullScanAt >= this.fullScanIntervalMs;
-        if (forceFullScan || staleMemo || workspacePath !== this.memoizedPath) {
+        if (forceFullScan || staleMemo || this.pendingOverflow || workspacePath !== this.memoizedPath) {
             // Forget everything and walk it all: this is what catches changes no
             // watcher reported, and drops entries for folders that are gone.
             this.subtotals.clear();
             this.invalidated.clear();
+            this.pendingChanges.clear();
+            this.pendingOverflow = false;
             this.memoizedPath = workspacePath;
             this.lastFullScanAt = sampledAt;
+        } else {
+            this.applyPendingChanges();
         }
 
         const { bytes } = await this.subtreeSize(workspacePath);
