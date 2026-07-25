@@ -2,6 +2,19 @@
 
 All notable changes to the "otak-monitor" extension will be documented in this file.
 
+## [1.2.7] - 2026-07-26
+
+### Changed
+- Elect one window to sample CPU, memory, and disk usage and publish the readings to the others, so the sampling cost stays flat as more VS Code windows are opened (#4).
+- Share the workspace directory-size measurement between windows that opened the same folder, and hand sampling over to another window within the lease window when the sampling one closes (#4).
+- Measure the workspace directory in the background instead of holding up the status bar update, and reuse each measurement for five minutes (#4).
+- Remember the total under each expensive subtree and re-measure only the subtrees a file change touched, which takes an update after a one-file edit from 860 ms to 1 ms on a 5.4 GB workspace, and to nothing at all when the workspace has not changed (#4).
+- Choose the remembered subtrees by what they cost to walk rather than by their depth, and cap how many are kept, so the memory this costs does not grow with the workspace (#4).
+- Measure the whole workspace again every 30 minutes, and whenever the status bar item is clicked, so a change no file watcher reported is still picked up (#4).
+- Measure with directory listings and `lstat` only, never opening a file and never following symbolic links or junctions, so an on-access virus scanner has nothing to scan; keep filesystem requests in flight capped at 8 so the walk cannot arrive as a burst (#4).
+- Skip status bar and tooltip assignments that would not change what is displayed, and leave the tooltip alone entirely while the window is in the background (#4).
+- Update less often while a window is in the background, and less often still when it is following another window's readings (#4).
+
 ## [1.2.6] - 2026-07-11
 
 ### Added

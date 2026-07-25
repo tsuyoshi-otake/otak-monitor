@@ -1,4 +1,5 @@
 import * as assert from 'assert';
+import * as vscode from 'vscode';
 import { MetricsFormatter } from '../formatter';
 import { RollingMetricsHistory } from '../rollingAverage';
 import { WorkspaceSizeSampler } from '../samplers';
@@ -7,6 +8,14 @@ import * as os from 'os';
 import * as path from 'path';
 
 suite('Extension Test Suite', () => {
+    test('the extension activates', async () => {
+        const extension = vscode.extensions.getExtension('odangoo.otak-monitor');
+
+        assert.ok(extension, 'the extension is not installed in the test host');
+        await extension.activate();
+        assert.strictEqual(extension.isActive, true);
+    });
+
     test('rolling history keeps O(1) totals while evicting old samples', () => {
         const history = new RollingMetricsHistory(2);
 
@@ -49,6 +58,42 @@ suite('Extension Test Suite', () => {
 
             currentTime = 1101;
             assert.strictEqual((await sampler.getWorkspaceSize()).bytes, 15);
+        } finally {
+            await fs.promises.rm(workspacePath, { recursive: true, force: true });
+        }
+    });
+
+    test('only the part of the workspace that changed is measured again', async () => {
+        const workspacePath = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'otak-monitor-'));
+        const fileIn = (branch: string) => path.join(workspacePath, branch, 'file.txt');
+        try {
+            await fs.promises.mkdir(path.join(workspacePath, 'a'));
+            await fs.promises.mkdir(path.join(workspacePath, 'b'));
+            await fs.promises.writeFile(fileIn('a'), '1234');
+            await fs.promises.writeFile(fileIn('b'), '123456');
+
+            let currentTime = 100;
+            // Remember every subtree rather than only the expensive ones, so
+            // the test can see which of them get walked again.
+            const sampler = new WorkspaceSizeSampler(() => workspacePath, () => currentTime, 0, 60_000, 1);
+            assert.strictEqual((await sampler.getWorkspaceSize()).bytes, 10);
+
+            // Both branches grow, but only one of them is reported.
+            await fs.promises.appendFile(fileIn('a'), '5');
+            await fs.promises.appendFile(fileIn('b'), '78');
+            sampler.markChanged(fileIn('a'));
+            // b keeps the total it was measured with, which it could only do by
+            // not being walked.
+            assert.strictEqual((await sampler.getWorkspaceSize()).bytes, 11);
+
+            // Nothing is reported this time, so nothing is walked at all.
+            await fs.promises.appendFile(fileIn('a'), '6');
+            assert.strictEqual((await sampler.getWorkspaceSize()).bytes, 11);
+
+            // The periodic full measurement is what catches everything that was
+            // never reported.
+            currentTime += 60_000;
+            assert.strictEqual((await sampler.getWorkspaceSize()).bytes, 14);
         } finally {
             await fs.promises.rm(workspacePath, { recursive: true, force: true });
         }

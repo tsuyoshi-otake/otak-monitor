@@ -37,22 +37,26 @@ export class MetricsFormatter {
         }
     }
 
-    public static createTooltip(metrics: MetricsSnapshot): vscode.MarkdownString {
-        const mdTooltip = new vscode.MarkdownString();
+    /**
+     * The tooltip body. Kept separate from the `MarkdownString` so a caller can
+     * compare it against what it last displayed: rendering the tooltip pushes
+     * it across to the UI process, which is worth skipping when nothing moved.
+     */
+    public static createTooltipText(metrics: MetricsSnapshot): string {
         const cpuDisplay = metrics.cpu.usage.toString().padStart(2, '0');
 
-        // Current metrics section
-        mdTooltip.appendMarkdown("Current\n\n---\n\n");
-        mdTooltip.appendMarkdown(
-            `CPU Usage: ${cpuDisplay}% @ ${metrics.cpu.speed} MHz\n\n`
-        );
-        mdTooltip.appendMarkdown(
-            `Memory Usage: ${metrics.memory.used} MB / ${metrics.memory.total} MB (${metrics.memory.usagePercent}%)\n\n`
-        );
-        mdTooltip.appendMarkdown(
-            `${this.getDiskLabel()}: ${metrics.disk.total - metrics.disk.free} GB / ${metrics.disk.total} GB (${metrics.disk.usagePercent}%)\n\n`
-        );
-        mdTooltip.appendMarkdown(`Current Directory Size: ${this.formatBytes(metrics.workspace.bytes)}`);
+        return [
+            'Current\n\n---\n\n',
+            `CPU Usage: ${cpuDisplay}% @ ${metrics.cpu.speed} MHz\n\n`,
+            `Memory Usage: ${metrics.memory.used} MB / ${metrics.memory.total} MB (${metrics.memory.usagePercent}%)\n\n`,
+            `${this.getDiskLabel()}: ${metrics.disk.total - metrics.disk.free} GB / ${metrics.disk.total} GB (${metrics.disk.usagePercent}%)\n\n`,
+            `Current Directory Size: ${this.formatBytes(metrics.workspace.bytes)}`
+        ].join('');
+    }
+
+    public static createTooltip(metrics: MetricsSnapshot): vscode.MarkdownString {
+        const mdTooltip = new vscode.MarkdownString();
+        mdTooltip.appendMarkdown(this.createTooltipText(metrics));
 
         return mdTooltip;
     }
