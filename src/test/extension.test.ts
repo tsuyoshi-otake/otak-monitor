@@ -98,4 +98,31 @@ suite('Extension Test Suite', () => {
             await fs.promises.rm(workspacePath, { recursive: true, force: true });
         }
     });
+
+    test('more changes than are worth tracking measure the whole folder again', async () => {
+        const workspacePath = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'otak-monitor-'));
+        const fileIn = (branch: string) => path.join(workspacePath, branch, 'file.txt');
+        try {
+            await fs.promises.mkdir(path.join(workspacePath, 'a'));
+            await fs.promises.mkdir(path.join(workspacePath, 'b'));
+            await fs.promises.writeFile(fileIn('a'), '1234');
+            await fs.promises.writeFile(fileIn('b'), '123456');
+
+            const currentTime = 100;
+            const sampler = new WorkspaceSizeSampler(() => workspacePath, () => currentTime, 0, 60_000, 1);
+            assert.strictEqual((await sampler.getWorkspaceSize()).bytes, 10);
+
+            // A build reports far more paths than it is worth tracking, and
+            // never names the branch that actually grew.
+            await fs.promises.appendFile(fileIn('b'), '78');
+            for (let index = 0; index < 5000; index++) {
+                sampler.markChanged(path.join(workspacePath, 'a', `generated-${index}.txt`));
+            }
+
+            // Measuring everything again is what makes that safe.
+            assert.strictEqual((await sampler.getWorkspaceSize()).bytes, 12);
+        } finally {
+            await fs.promises.rm(workspacePath, { recursive: true, force: true });
+        }
+    });
 });
