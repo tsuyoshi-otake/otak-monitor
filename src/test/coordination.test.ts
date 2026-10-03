@@ -47,7 +47,10 @@ class CountingCollector extends MetricsCollector {
 function createCollector(
     workspaceDir: string | undefined,
     workspaceSampleIntervalMs: number = 0,
-    memoCostThreshold?: number
+    memoCostThreshold?: number,
+    // Passed in by a test that reports file changes to it, as the window's watcher does.
+    workspaceSizeSampler: WorkspaceSizeSampler =
+        new WorkspaceSizeSampler(() => workspaceDir, Date.now, workspaceSampleIntervalMs, undefined, memoCostThreshold)
 ): CountingCollector {
     let readings = 0;
     const cpuProvider = (): os.CpuInfo[] => {
@@ -76,7 +79,7 @@ function createCollector(
         // where a test needs the folder size cached, or its subtotals
         // remembered, the way they are in use.
         new DiskSampler(new MonitorPathResolver(() => 'darwin'), statfs, Date.now, 0),
-        new WorkspaceSizeSampler(() => workspaceDir, Date.now, workspaceSampleIntervalMs, undefined, memoCostThreshold)
+        workspaceSizeSampler
     );
 }
 
@@ -179,6 +182,33 @@ suite('Coordination Test Suite', () => {
 
         await collector.pendingWorkspaceWalk;
         assert.deepStrictEqual((await solo.refresh()).workspace, { path: workspaceDir, bytes: 4 });
+    });
+
+    test('Copy Summary measures what changed in the folder rather than all of it again', async () => {
+        const fileIn = (branch: string) => path.join(workspaceDir, branch, 'file.txt');
+        await fs.promises.mkdir(path.join(workspaceDir, 'a'));
+        await fs.promises.mkdir(path.join(workspaceDir, 'b'));
+        await fs.promises.writeFile(fileIn('a'), '12');
+        await fs.promises.writeFile(fileIn('b'), '123');
+        // The total cached for five minutes and every subtree remembered, the
+        // way they are in a folder large enough for either to matter.
+        const sampler = new WorkspaceSizeSampler(() => workspaceDir, Date.now, 5 * 60_000, undefined, 1);
+        const collector = createCollector(workspaceDir, undefined, undefined, sampler);
+        const solo = new MonitorCoordinator(collector, storageDir, () => workspaceDir, coordinatorOptions());
+        await solo.refresh();
+        await collector.pendingWorkspaceWalk;
+        assertFolderSizeShown(await solo.refresh(), 9);
+
+        // One change the watcher reports, and one it does not.
+        await fs.promises.appendFile(fileIn('a'), '3');
+        await fs.promises.appendFile(fileIn('b'), '45');
+        sampler.markChanged(fileIn('a'));
+        assertFolderSizeShown(await solo.refresh(), 9);
+
+        // What Copy Summary asks for: the reported change is measured at once,
+        // and b, which nothing reported, is not walked again.
+        assertFolderSizeShown(await solo.refresh({ refreshDisk: true, refreshWorkspace: true }), 10);
+        assert.strictEqual(await sharedFolderSize(), 10);
     });
 
     test('a following window renders the leader snapshot without sampling', async () => {

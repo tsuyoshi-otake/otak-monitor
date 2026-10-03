@@ -453,6 +453,15 @@ export class WorkspaceSizeSampler {
         return this.cachedMetrics.path === workspacePath ? this.cachedMetrics : {};
     }
 
+    /**
+     * The size of the workspace, measured again once the cached total has aged
+     * out or the exclusions have changed. `forceRefresh` measures it now
+     * regardless — Copy Summary copies what it is given — but like any other
+     * walk it measures only what changed, from the remembered subtotals.
+     * Forgetting them on request would cost every filesystem request they
+     * exist to save, each time Copy Summary is pressed; a change no watcher
+     * reported is left to the periodic full walk.
+     */
     async getWorkspaceSize(forceRefresh: boolean = false): Promise<WorkspaceSizeMetrics> {
         const workspacePath = this.workspacePathProvider();
         if (!workspacePath) {
@@ -479,8 +488,8 @@ export class WorkspaceSizeSampler {
         const previous = this.inFlight;
         const generation = this.generation;
         const measurement = previous
-            ? previous.catch(() => undefined).then(() => this.measure(workspacePath, currentTime, forceRefresh, generation))
-            : this.measure(workspacePath, currentTime, forceRefresh, generation);
+            ? previous.catch(() => undefined).then(() => this.measure(workspacePath, currentTime, generation))
+            : this.measure(workspacePath, currentTime, generation);
         this.inFlight = measurement;
         this.inFlightGeneration = generation;
         try {
@@ -523,7 +532,6 @@ export class WorkspaceSizeSampler {
     private async measure(
         workspacePath: string,
         sampledAt: number,
-        forceFullScan: boolean,
         generation: number
     ): Promise<WorkspaceSizeMetrics> {
         if (generation !== this.generation) {
@@ -533,7 +541,7 @@ export class WorkspaceSizeSampler {
         const exclusionsChanged = this.refreshExclusions();
         const staleMemo = sampledAt - this.lastFullScanAt >= this.fullScanIntervalMs;
         const fullScan =
-            forceFullScan || exclusionsChanged || staleMemo || this.pendingOverflow || workspacePath !== this.memoizedPath;
+            exclusionsChanged || staleMemo || this.pendingOverflow || workspacePath !== this.memoizedPath;
         if (fullScan) {
             this.forgetSubtotals(workspacePath, sampledAt);
         } else {
