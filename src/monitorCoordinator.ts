@@ -208,14 +208,6 @@ export class MonitorCoordinator {
      * that window published, so it neither shows nor publishes it: it shows
      * the published size until a walk of its own — one that only measures what
      * changed, unless it disagrees with that size — has finished.
-     *
-     * The published size is no older than what this window last knew, so it
-     * replaces that however old it is. It does not stand in for knowing
-     * nothing, though, unless it is fresh: a live leader rewrites its snapshot
-     * every heartbeat, so one older than a lease was left by a window that has
-     * stopped measuring — at a cold start, possibly in a session that ended
-     * days ago — and a window that has not known this folder's size shows none
-     * until it has measured it, as it would with no snapshot at all.
      */
     private async takeOverWorkspace(nowMs: number): Promise<void> {
         const workspacePath = this.workspacePathProvider();
@@ -224,10 +216,28 @@ export class MonitorCoordinator {
         // A size this window published itself is what its own walk started
         // from, so only another window's is worth checking that walk against.
         this.collector.expireWorkspace(published?.leader === this.instanceId ? undefined : published?.bytes);
-        if (!workspacePath || !published) {
-            return;
+        if (workspacePath && published) {
+            this.adoptPublishedWorkspace(workspacePath, published, nowMs);
         }
+    }
 
+    /**
+     * Show the size published for this window's folder if it is worth
+     * showing, whether this window has just taken the measurement over or
+     * follows the window that has it.
+     *
+     * The published size is no older than what this window last knew, so it
+     * replaces that however old it is. It does not stand in for knowing
+     * nothing, though, unless it is fresh: a live leader rewrites its snapshot
+     * every heartbeat, so one older than a lease was left by a window that has
+     * stopped measuring — at a cold start, possibly in a session that ended
+     * days ago — and a window that has not known this folder's size shows none
+     * until the folder has been measured, as it would with no snapshot at all.
+     *
+     * The size is remembered under this window's own spelling of the folder,
+     * which every later comparison uses; the publisher may spell it differently.
+     */
+    private adoptPublishedWorkspace(workspacePath: string, published: WorkspaceSnapshot, nowMs: number): void {
         // A timestamp ahead of this clock means the clocks disagree, not that
         // the leader has stopped.
         const fresh = nowMs - published.updatedAtMs < LEASE_MS;
@@ -358,12 +368,14 @@ export class MonitorCoordinator {
 
         const snapshot = await readWorkspaceSnapshot(this.workspaceSnapshotPath);
         if (snapshot && samePath(snapshot.path, workspacePath)) {
-            this.lastWorkspace = { path: snapshot.path, bytes: snapshot.bytes };
-        } else if (this.lastWorkspace.path !== workspacePath) {
-            // The leader for this folder has not published yet. Unlike the
-            // machine readings, walking the folder to fill the gap would cost
-            // exactly what the shared measurement exists to avoid, so this
-            // window shows no size until the measurement arrives.
+            this.adoptPublishedWorkspace(workspacePath, snapshot, nowMs);
+        }
+        if (this.lastWorkspace.path !== workspacePath) {
+            // The leader for this folder has not published yet, or there is
+            // only a size left behind. Unlike the machine readings, walking the
+            // folder to fill the gap would cost exactly what the shared
+            // measurement exists to avoid, so this window shows no size until
+            // the measurement arrives.
             this.lastWorkspace = {};
         }
         return this.lastWorkspace;

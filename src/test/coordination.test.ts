@@ -637,4 +637,106 @@ suite('Coordination Test Suite', () => {
         assert.strictEqual(await sharedFolderSize(), 10);
         await firstCollector.pendingWorkspaceWalk;
     });
+
+    test('a window that loses the folder lease to one still on its first walk does not show a size left behind', async () => {
+        const leftBehind: WorkspaceSnapshot = {
+            version: SNAPSHOT_VERSION,
+            updatedAtMs: clock.ms - 24 * 60 * 60_000,
+            leader: 'yesterday',
+            path: workspaceDir,
+            bytes: 999_999
+        };
+        await fs.promises.writeFile(snapshotPathFor(storageDir, workspaceScope(workspaceDir)), JSON.stringify(leftBehind));
+        const firstCollector = createCollector(workspaceDir);
+        const first = new MonitorCoordinator(firstCollector, storageDir, () => workspaceDir, coordinatorOptions());
+        const second = new MonitorCoordinator(createCollector(workspaceDir), storageDir, () => workspaceDir, coordinatorOptions());
+
+        // Both windows want the size for a moment, as they do while the focus
+        // passes from one to the other. The first takes the lease and starts
+        // walking; the second follows before anything current is published.
+        assertFolderSizeShown(await first.refresh(), undefined);
+        assert.strictEqual(first.isWorkspaceLeader, true);
+        const following = await second.refresh();
+        assert.strictEqual(second.isWorkspaceLeader, false);
+        assertFolderSizeShown(following, undefined);
+
+        await firstCollector.pendingWorkspaceWalk;
+        assertFolderSizeShown(await first.refresh(), 4);
+        assertFolderSizeShown(await second.refresh(), 4);
+    });
+
+    test('a window that loses the folder lease goes on showing the size it measured itself', async () => {
+        const inFront = { first: false, second: true };
+        const firstCollector = createCollector(workspaceDir);
+        const secondCollector = createCollector(workspaceDir);
+        const first = new MonitorCoordinator(firstCollector, storageDir, () => workspaceDir, {
+            ...coordinatorOptions(),
+            wantsWorkspaceMeasurement: () => inFront.first
+        });
+        const second = new MonitorCoordinator(secondCollector, storageDir, () => workspaceDir, {
+            ...coordinatorOptions(),
+            wantsWorkspaceMeasurement: () => inFront.second
+        });
+        await second.refresh();
+        await secondCollector.pendingWorkspaceWalk;
+        assertFolderSizeShown(await second.refresh(), 4);
+
+        // The second window is in the background for longer than a lease,
+        // then the first comes to the front and starts walking the folder.
+        inFront.second = false;
+        await second.refresh();
+        clock.ms += LEASE_MS + HEARTBEAT_MS;
+        inFront.first = true;
+        assertFolderSizeShown(await first.refresh(), undefined);
+        assert.strictEqual(first.isWorkspaceLeader, true);
+
+        // The second window wants the size again before the first has
+        // published. Its own snapshot is old, but nobody has measured the
+        // folder since it wrote it, so it is no reason to go blank.
+        inFront.second = true;
+        const following = await second.refresh();
+        assert.strictEqual(second.isWorkspaceLeader, false);
+        assertFolderSizeShown(following, 4);
+        await firstCollector.pendingWorkspaceWalk;
+    });
+
+    test('a window that opened the folder under another spelling takes over the size it followed', async () => {
+        const otherSpelling = workspaceDir + path.sep;
+        assert.strictEqual(samePath(otherSpelling, workspaceDir), true);
+        const inFront = { first: true, second: false };
+        const firstCollector = createCollector(workspaceDir);
+        const secondCollector = createCollector(otherSpelling);
+        const first = new MonitorCoordinator(firstCollector, storageDir, () => workspaceDir, {
+            ...coordinatorOptions(),
+            wantsWorkspaceMeasurement: () => inFront.first
+        });
+        const second = new MonitorCoordinator(secondCollector, storageDir, () => otherSpelling, {
+            ...coordinatorOptions(),
+            wantsWorkspaceMeasurement: () => inFront.second
+        });
+        await first.refresh();
+        await firstCollector.pendingWorkspaceWalk;
+        assertFolderSizeShown(await first.refresh(), 4);
+
+        // The second window follows the first for a moment.
+        inFront.second = true;
+        const following = await second.refresh();
+        assert.strictEqual(second.isWorkspaceLeader, false);
+        assertFolderSizeShown(following, 4);
+        inFront.second = false;
+        await second.refresh();
+
+        // Nobody measures the folder for longer than a lease, then the second
+        // window comes to the front: the size it followed is the one it knew,
+        // however the publishing window spelled the folder.
+        inFront.first = false;
+        await first.refresh();
+        clock.ms += LEASE_MS + HEARTBEAT_MS;
+        inFront.second = true;
+        const taken = await second.refresh();
+        assert.strictEqual(second.isWorkspaceLeader, true);
+        assertFolderSizeShown(taken, 4);
+        await secondCollector.pendingWorkspaceWalk;
+        assertFolderSizeShown(await second.refresh(), 4);
+    });
 });
