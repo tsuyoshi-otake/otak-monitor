@@ -6,12 +6,14 @@ import { HEARTBEAT_MS, LEASE_MS, LeaderLock, lockIsStale } from '../coordination
 import { MACHINE_SCOPE, lockPathFor, samePath, snapshotPathFor, workspaceScope } from '../coordination/paths';
 import {
     SNAPSHOT_VERSION,
+    WorkspaceSnapshot,
     isMachineSnapshot,
     isWorkspaceSnapshot,
     readMachineSnapshot,
     readWorkspaceSnapshot
 } from '../coordination/sharedMetrics';
-import { MachineMetrics, MetricsCollector } from '../metrics';
+import { MetricsFormatter } from '../formatter';
+import { MachineMetrics, MetricsCollector, MetricsSnapshot } from '../metrics';
 import { MonitorCoordinator } from '../monitorCoordinator';
 import {
     CpuSampler,
@@ -42,7 +44,11 @@ class CountingCollector extends MetricsCollector {
     }
 }
 
-function createCollector(workspaceDir: string | undefined, workspaceSampleIntervalMs: number = 0): CountingCollector {
+function createCollector(
+    workspaceDir: string | undefined,
+    workspaceSampleIntervalMs: number = 0,
+    memoCostThreshold?: number
+): CountingCollector {
     let readings = 0;
     const cpuProvider = (): os.CpuInfo[] => {
         readings++;
@@ -67,10 +73,19 @@ function createCollector(workspaceDir: string | undefined, workspaceSampleInterv
         new MemorySampler(() => 8 * 1024 ** 2, () => 4 * 1024 ** 2),
         // Sampling intervals of zero keep the samplers out of the way: this
         // suite is about who samples, not about their own caching — except
-        // where a test needs the folder size cached the way it is in use.
+        // where a test needs the folder size cached, or its subtotals
+        // remembered, the way they are in use.
         new DiskSampler(new MonitorPathResolver(() => 'darwin'), statfs, Date.now, 0),
-        new WorkspaceSizeSampler(() => workspaceDir, Date.now, workspaceSampleIntervalMs)
+        new WorkspaceSizeSampler(() => workspaceDir, Date.now, workspaceSampleIntervalMs, undefined, memoCostThreshold)
     );
+}
+
+/** The folder size a window shows: in the update itself, the tooltip and Copy Summary alike. */
+function assertFolderSizeShown(metrics: MetricsSnapshot, bytes: number | undefined): void {
+    assert.strictEqual(metrics.workspace.bytes, bytes);
+    const shown = MetricsFormatter.formatBytes(bytes);
+    assert.ok(MetricsFormatter.createTooltipText(metrics).includes(`Current Directory Size: ${shown}\n`));
+    assert.ok(MetricsFormatter.createClipboardText(metrics).split('\n').includes(`- **Current Directory Size:** ${shown}`));
 }
 
 suite('Coordination Test Suite', () => {
@@ -99,6 +114,8 @@ suite('Coordination Test Suite', () => {
         roleCheckIntervalMs: 0,
         settleMs: 0
     });
+    const sharedFolderSize = async () =>
+        (await readWorkspaceSnapshot(snapshotPathFor(storageDir, workspaceScope(workspaceDir))))?.bytes;
 
     test('only one window holds a lease at a time', async () => {
         const lockPath = lockPathFor(storageDir, 'test');
@@ -392,13 +409,11 @@ suite('Coordination Test Suite', () => {
             ...coordinatorOptions(),
             wantsWorkspaceMeasurement: () => inFront.second
         });
-        const shared = async () =>
-            (await readWorkspaceSnapshot(snapshotPathFor(storageDir, workspaceScope(workspaceDir))))?.bytes;
 
         await first.refresh();
         await firstCollector.pendingWorkspaceWalk;
         assert.strictEqual((await first.refresh()).workspace.bytes, 4);
-        assert.strictEqual(await shared(), 4);
+        assert.strictEqual(await sharedFolderSize(), 4);
 
         // The folder grows while the second window is in front and measuring.
         await fs.promises.writeFile(path.join(workspaceDir, 'grown.txt'), '123456');
@@ -408,7 +423,7 @@ suite('Coordination Test Suite', () => {
         await second.refresh();
         await secondCollector.pendingWorkspaceWalk;
         assert.strictEqual((await second.refresh()).workspace.bytes, 10);
-        assert.strictEqual(await shared(), 10);
+        assert.strictEqual(await sharedFolderSize(), 10);
 
         // Back to the first window, whose own measurement predates the growth:
         // it neither shows that nor publishes it over the newer one.
@@ -418,12 +433,12 @@ suite('Coordination Test Suite', () => {
         const back = await first.refresh();
         assert.strictEqual(first.isWorkspaceLeader, true);
         assert.strictEqual(back.workspace.bytes, 10);
-        assert.strictEqual(await shared(), 10);
+        assert.strictEqual(await sharedFolderSize(), 10);
 
         // From then on it shows what it measured itself.
         await firstCollector.pendingWorkspaceWalk;
         assert.strictEqual((await first.refresh()).workspace.bytes, 10);
-        assert.strictEqual(await shared(), 10);
+        assert.strictEqual(await sharedFolderSize(), 10);
     });
 
     test('a window coming to the front takes the folder measurement up at once', async () => {
@@ -449,5 +464,177 @@ suite('Coordination Test Suite', () => {
         await second.refresh();
         assert.strictEqual(first.isWorkspaceLeader, false);
         assert.strictEqual(second.isWorkspaceLeader, true);
+    });
+
+    test('a folder size left behind by a window that has closed is not shown', async () => {
+        // Closing the last window leaves its snapshot behind, and a window
+        // opened on the folder the next day must not show that size as current.
+        const leftBehind: WorkspaceSnapshot = {
+            version: SNAPSHOT_VERSION,
+            updatedAtMs: clock.ms - 24 * 60 * 60_000,
+            leader: 'yesterday',
+            path: workspaceDir,
+            bytes: 999_999
+        };
+        await fs.promises.writeFile(snapshotPathFor(storageDir, workspaceScope(workspaceDir)), JSON.stringify(leftBehind));
+        const collector = createCollector(workspaceDir);
+        const coordinator = new MonitorCoordinator(collector, storageDir, () => workspaceDir, coordinatorOptions());
+
+        const first = await coordinator.refresh();
+        assert.strictEqual(coordinator.isWorkspaceLeader, true);
+        assertFolderSizeShown(first, undefined);
+
+        await collector.pendingWorkspaceWalk;
+        assertFolderSizeShown(await coordinator.refresh(), 4);
+        assert.strictEqual(await sharedFolderSize(), 4);
+    });
+
+    test('a window back in front after a long while shows the folder size it measured itself', async () => {
+        const inFront = { value: true };
+        const collector = createCollector(workspaceDir);
+        const coordinator = new MonitorCoordinator(collector, storageDir, () => workspaceDir, {
+            ...coordinatorOptions(),
+            wantsWorkspaceMeasurement: () => inFront.value
+        });
+        await coordinator.refresh();
+        await collector.pendingWorkspaceWalk;
+        assertFolderSizeShown(await coordinator.refresh(), 4);
+
+        // Away at another application for longer than a lease, the window
+        // hands the measurement back and nobody takes it up.
+        inFront.value = false;
+        await coordinator.refresh();
+        assert.strictEqual(coordinator.isWorkspaceLeader, false);
+        clock.ms += LEASE_MS + HEARTBEAT_MS;
+
+        // Its snapshot is old by then, but nobody has measured the folder
+        // since it wrote it, so its size still stands rather than going blank.
+        inFront.value = true;
+        const back = await coordinator.refresh();
+        assert.strictEqual(coordinator.isWorkspaceLeader, true);
+        assertFolderSizeShown(back, 4);
+        await collector.pendingWorkspaceWalk;
+    });
+
+    test('a window taking over from a leader whose folder size has not changed shows that size at once', async () => {
+        const inFront = { first: true, second: false };
+        const firstCollector = createCollector(workspaceDir);
+        const secondCollector = createCollector(workspaceDir);
+        const first = new MonitorCoordinator(firstCollector, storageDir, () => workspaceDir, {
+            ...coordinatorOptions(),
+            wantsWorkspaceMeasurement: () => inFront.first
+        });
+        const second = new MonitorCoordinator(secondCollector, storageDir, () => workspaceDir, {
+            ...coordinatorOptions(),
+            wantsWorkspaceMeasurement: () => inFront.second
+        });
+        await first.refresh();
+        await firstCollector.pendingWorkspaceWalk;
+        assertFolderSizeShown(await first.refresh(), 4);
+
+        // The size stays the same for longer than a lease. A snapshot's age is
+        // how a window taking over tells a live leader's size from one left
+        // behind, so it is rewritten all the same.
+        for (let elapsed = 0; elapsed <= LEASE_MS; elapsed += 5000) {
+            clock.ms += 5000;
+            await first.refresh();
+            await firstCollector.pendingWorkspaceWalk;
+        }
+        const snapshot = await readWorkspaceSnapshot(snapshotPathFor(storageDir, workspaceScope(workspaceDir)));
+        assert.ok(snapshot);
+        assert.ok(clock.ms - snapshot.updatedAtMs < HEARTBEAT_MS);
+
+        inFront.first = false;
+        inFront.second = true;
+        await first.refresh();
+        const taken = await second.refresh();
+        assert.strictEqual(second.isWorkspaceLeader, true);
+        assertFolderSizeShown(taken, 4);
+        await secondCollector.pendingWorkspaceWalk;
+    });
+
+    test('a window taking the folder measurement back measures what its own watcher never reported', async () => {
+        const inFront = { first: true, second: false };
+        // Remembering every directory's total, however cheap it was to walk,
+        // stands in for a folder large enough for that to pay.
+        const firstCollector = createCollector(workspaceDir, 0, 1);
+        const secondCollector = createCollector(workspaceDir, 0, 1);
+        const first = new MonitorCoordinator(firstCollector, storageDir, () => workspaceDir, {
+            ...coordinatorOptions(),
+            wantsWorkspaceMeasurement: () => inFront.first
+        });
+        const second = new MonitorCoordinator(secondCollector, storageDir, () => workspaceDir, {
+            ...coordinatorOptions(),
+            wantsWorkspaceMeasurement: () => inFront.second
+        });
+        await first.refresh();
+        await firstCollector.pendingWorkspaceWalk;
+        assertFolderSizeShown(await first.refresh(), 4);
+        await firstCollector.pendingWorkspaceWalk;
+
+        // The folder grows where no watcher reports it — VS Code does not
+        // watch node_modules — while the second window is in front.
+        await fs.promises.writeFile(path.join(workspaceDir, 'unwatched.txt'), '123456');
+        inFront.first = false;
+        inFront.second = true;
+        await first.refresh();
+        await second.refresh();
+        await secondCollector.pendingWorkspaceWalk;
+        assertFolderSizeShown(await second.refresh(), 10);
+        assert.strictEqual(await sharedFolderSize(), 10);
+
+        // Back to the first window, whose remembered total predates the
+        // growth: its walk disagrees with the size it took over, so it
+        // measures the whole folder rather than publishing the older total.
+        inFront.first = true;
+        inFront.second = false;
+        await second.refresh();
+        assertFolderSizeShown(await first.refresh(), 10);
+        await firstCollector.pendingWorkspaceWalk;
+        assertFolderSizeShown(await first.refresh(), 10);
+        assert.strictEqual(await sharedFolderSize(), 10);
+        await firstCollector.pendingWorkspaceWalk;
+    });
+
+    test('a window back in front after a long while shows the newer size another window measured meanwhile', async () => {
+        const inFront = { first: true, second: false };
+        const firstCollector = createCollector(workspaceDir);
+        const secondCollector = createCollector(workspaceDir);
+        const first = new MonitorCoordinator(firstCollector, storageDir, () => workspaceDir, {
+            ...coordinatorOptions(),
+            wantsWorkspaceMeasurement: () => inFront.first
+        });
+        const second = new MonitorCoordinator(secondCollector, storageDir, () => workspaceDir, {
+            ...coordinatorOptions(),
+            wantsWorkspaceMeasurement: () => inFront.second
+        });
+        await first.refresh();
+        await firstCollector.pendingWorkspaceWalk;
+        assertFolderSizeShown(await first.refresh(), 4);
+
+        await fs.promises.writeFile(path.join(workspaceDir, 'grown.txt'), '123456');
+        inFront.first = false;
+        inFront.second = true;
+        await first.refresh();
+        await second.refresh();
+        await secondCollector.pendingWorkspaceWalk;
+        assertFolderSizeShown(await second.refresh(), 10);
+
+        // The user leaves for another application for longer than a lease,
+        // so the second window stops measuring, then comes back to the first.
+        inFront.second = false;
+        await second.refresh();
+        clock.ms += LEASE_MS + HEARTBEAT_MS;
+        inFront.first = true;
+
+        // The second window's size is no longer fresh, but it is newer than
+        // the one the first window knew, so it is what the first one shows.
+        const back = await first.refresh();
+        assert.strictEqual(first.isWorkspaceLeader, true);
+        assertFolderSizeShown(back, 10);
+        await firstCollector.pendingWorkspaceWalk;
+        assertFolderSizeShown(await first.refresh(), 10);
+        assert.strictEqual(await sharedFolderSize(), 10);
+        await firstCollector.pendingWorkspaceWalk;
     });
 });

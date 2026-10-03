@@ -94,9 +94,12 @@ export class MetricsCollector {
         return this.workspaceSizeSampler.peekWorkspaceSize();
     }
 
-    /** Forget the workspace size measured so far; `peekWorkspace` reports none until the next walk lands. */
-    public expireWorkspace(): void {
-        this.workspaceSizeSampler.expireMeasurement();
+    /**
+     * Forget the workspace size measured so far; `peekWorkspace` reports none until the next walk lands.
+     * `inheritedBytes` is a size another window published, which that walk is checked against.
+     */
+    public expireWorkspace(inheritedBytes?: number): void {
+        this.workspaceSizeSampler.expireMeasurement(inheritedBytes);
     }
 
     /** The background measurement started by `peekWorkspace`, if one is running. */

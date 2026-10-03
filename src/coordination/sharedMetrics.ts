@@ -27,7 +27,14 @@ export interface MachineSnapshot extends MachineMetrics {
  */
 export interface WorkspaceSnapshot {
     version: number;
+    /**
+     * Epoch ms the leader produced this. A live leader rewrites it at least
+     * once per heartbeat even when the size is unchanged, so one older than a
+     * lease was left behind by a window that has stopped measuring — one that
+     * is gone, or has handed the measurement back.
+     */
     updatedAtMs: number;
+    /** Instance id of the publishing leader, which tells a window its own snapshot. */
     leader: string;
     path: string;
     bytes: number;
