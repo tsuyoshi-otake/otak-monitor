@@ -94,6 +94,11 @@ export class MetricsCollector {
         return this.workspaceSizeSampler.peekWorkspaceSize();
     }
 
+    /** Forget the workspace size measured so far; `peekWorkspace` reports none until the next walk lands. */
+    public expireWorkspace(): void {
+        this.workspaceSizeSampler.expireMeasurement();
+    }
+
     /** The background measurement started by `peekWorkspace`, if one is running. */
     public get pendingWorkspaceWalk(): Promise<WorkspaceSizeMetrics> | undefined {
         return this.workspaceSizeSampler.pendingMeasurement;

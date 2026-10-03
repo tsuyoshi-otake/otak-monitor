@@ -2,6 +2,13 @@
 
 All notable changes to the "otak-monitor" extension will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- Stop showing a machine reading left behind by a window that is gone. A window started after the sampling window had closed — even days later — showed that window's last CPU, memory, and disk readings for its first two updates. A snapshot older than the 30-second lease is now ignored, the sampling window rewrites its snapshot at least every 10 seconds even when the readings have not changed so its age stays meaningful, and the reading a newly elected window carries over for one update is no longer re-published as current (#15).
+- Stop a window that takes the folder-size measurement back from showing, and publishing over the newer one, the size it measured before another window took over. It now shows the size the other window published until its own walk — which only measures what changed — has finished, and claims or hands back the measurement as soon as it comes to the front or leaves it rather than up to 10 seconds later (#15).
+- Measure the folder again on the next update after `otakMonitor.folderSize.excludeNames` changes, instead of keeping the previous total for up to five minutes (#15).
+
 ## [1.3.0] - 2026-07-26
 
 ### Added

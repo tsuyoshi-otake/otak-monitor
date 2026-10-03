@@ -2,9 +2,15 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { LEASE_MS, LeaderLock, lockIsStale } from '../coordination/leaderLock';
-import { lockPathFor, samePath, snapshotPathFor, workspaceScope } from '../coordination/paths';
-import { SNAPSHOT_VERSION, isMachineSnapshot, isWorkspaceSnapshot } from '../coordination/sharedMetrics';
+import { HEARTBEAT_MS, LEASE_MS, LeaderLock, lockIsStale } from '../coordination/leaderLock';
+import { MACHINE_SCOPE, lockPathFor, samePath, snapshotPathFor, workspaceScope } from '../coordination/paths';
+import {
+    SNAPSHOT_VERSION,
+    isMachineSnapshot,
+    isWorkspaceSnapshot,
+    readMachineSnapshot,
+    readWorkspaceSnapshot
+} from '../coordination/sharedMetrics';
 import { MachineMetrics, MetricsCollector } from '../metrics';
 import { MonitorCoordinator } from '../monitorCoordinator';
 import {
@@ -36,7 +42,7 @@ class CountingCollector extends MetricsCollector {
     }
 }
 
-function createCollector(workspaceDir: string | undefined): CountingCollector {
+function createCollector(workspaceDir: string | undefined, workspaceSampleIntervalMs: number = 0): CountingCollector {
     let readings = 0;
     const cpuProvider = (): os.CpuInfo[] => {
         readings++;
@@ -60,9 +66,10 @@ function createCollector(workspaceDir: string | undefined): CountingCollector {
         new CpuSampler(cpuProvider),
         new MemorySampler(() => 8 * 1024 ** 2, () => 4 * 1024 ** 2),
         // Sampling intervals of zero keep the samplers out of the way: this
-        // suite is about who samples, not about their own caching.
+        // suite is about who samples, not about their own caching — except
+        // where a test needs the folder size cached the way it is in use.
         new DiskSampler(new MonitorPathResolver(() => 'darwin'), statfs, Date.now, 0),
-        new WorkspaceSizeSampler(() => workspaceDir, Date.now, 0)
+        new WorkspaceSizeSampler(() => workspaceDir, Date.now, workspaceSampleIntervalMs)
     );
 }
 
@@ -313,5 +320,134 @@ suite('Coordination Test Suite', () => {
         assert.strictEqual(collector.machineSamples, 1);
         assert.strictEqual(collector.workspaceSamples, 0);
         assert.deepStrictEqual(metrics.workspace, {});
+    });
+
+    test('a reading left behind by a window that has closed is not shown', async () => {
+        // Yesterday's session published this, and no window maintains it now.
+        const leftBehind = {
+            version: SNAPSHOT_VERSION,
+            updatedAtMs: clock.ms - 24 * 60 * 60 * 1000,
+            leader: 'yesterday',
+            cpu: { usage: 99, speed: 3000 },
+            memory: { used: 1, total: 2, usagePercent: 99 },
+            disk: { free: 1, total: 2, usagePercent: 99 },
+            averages: { cpuAvg: 99, memoryAvg: 99, diskAvg: 99 }
+        };
+        await fs.promises.writeFile(snapshotPathFor(storageDir, MACHINE_SCOPE), JSON.stringify(leftBehind));
+
+        const collector = createCollector(workspaceDir);
+        const coordinator = new MonitorCoordinator(collector, storageDir, () => workspaceDir, coordinatorOptions());
+
+        // The first update renders before the window knows its role, and the
+        // second is the one a newly elected leader spends re-basing its CPU
+        // reading — both used to show yesterday's 99%.
+        for (let update = 0; update < 2; update++) {
+            const metrics = await coordinator.refresh();
+            assert.strictEqual(metrics.cpu.usage, 25);
+            assert.strictEqual(metrics.averages.cpuAvg, 25);
+            assert.notStrictEqual(metrics.memory.usagePercent, 99);
+            clock.ms += 1000;
+        }
+    });
+
+    test('a follower goes on trusting a leader whose readings have not changed', async () => {
+        const leaderCollector = createCollector(workspaceDir);
+        const followerCollector = createCollector(workspaceDir);
+        const leader = new MonitorCoordinator(leaderCollector, storageDir, () => workspaceDir, coordinatorOptions());
+        const follower = new MonitorCoordinator(followerCollector, storageDir, () => workspaceDir, coordinatorOptions());
+
+        await leader.refresh();
+        await leader.refresh();
+        await follower.refresh();
+        assert.strictEqual(follower.isMachineLeader, false);
+
+        // An idle machine: the readings do not move for longer than a lease,
+        // while the leader goes on updating every five seconds.
+        for (let elapsed = 0; elapsed <= LEASE_MS; elapsed += 5000) {
+            clock.ms += 5000;
+            await leader.refresh();
+        }
+        await follower.refresh();
+
+        // The snapshot's age is how a follower tells a live leader from one
+        // that is gone, so unchanged readings still have to be rewritten.
+        const snapshot = await readMachineSnapshot(snapshotPathFor(storageDir, MACHINE_SCOPE));
+        assert.ok(snapshot);
+        assert.ok(clock.ms - snapshot.updatedAtMs < HEARTBEAT_MS);
+        assert.strictEqual(follower.isMachineLeader, false);
+        assert.strictEqual(followerCollector.machineSamples, 0);
+    });
+
+    test('a window taking the folder measurement back shows the newer size, not its own older one', async () => {
+        const inFront = { first: true, second: false };
+        // In use the size is cached for minutes, which is what leaves the
+        // first window's own measurement out of date when it comes back.
+        const firstCollector = createCollector(workspaceDir, 5 * 60_000);
+        const secondCollector = createCollector(workspaceDir, 5 * 60_000);
+        const first = new MonitorCoordinator(firstCollector, storageDir, () => workspaceDir, {
+            ...coordinatorOptions(),
+            wantsWorkspaceMeasurement: () => inFront.first
+        });
+        const second = new MonitorCoordinator(secondCollector, storageDir, () => workspaceDir, {
+            ...coordinatorOptions(),
+            wantsWorkspaceMeasurement: () => inFront.second
+        });
+        const shared = async () =>
+            (await readWorkspaceSnapshot(snapshotPathFor(storageDir, workspaceScope(workspaceDir))))?.bytes;
+
+        await first.refresh();
+        await firstCollector.pendingWorkspaceWalk;
+        assert.strictEqual((await first.refresh()).workspace.bytes, 4);
+        assert.strictEqual(await shared(), 4);
+
+        // The folder grows while the second window is in front and measuring.
+        await fs.promises.writeFile(path.join(workspaceDir, 'grown.txt'), '123456');
+        inFront.first = false;
+        inFront.second = true;
+        await first.refresh();
+        await second.refresh();
+        await secondCollector.pendingWorkspaceWalk;
+        assert.strictEqual((await second.refresh()).workspace.bytes, 10);
+        assert.strictEqual(await shared(), 10);
+
+        // Back to the first window, whose own measurement predates the growth:
+        // it neither shows that nor publishes it over the newer one.
+        inFront.first = true;
+        inFront.second = false;
+        await second.refresh();
+        const back = await first.refresh();
+        assert.strictEqual(first.isWorkspaceLeader, true);
+        assert.strictEqual(back.workspace.bytes, 10);
+        assert.strictEqual(await shared(), 10);
+
+        // From then on it shows what it measured itself.
+        await firstCollector.pendingWorkspaceWalk;
+        assert.strictEqual((await first.refresh()).workspace.bytes, 10);
+        assert.strictEqual(await shared(), 10);
+    });
+
+    test('a window coming to the front takes the folder measurement up at once', async () => {
+        const inFront = { first: true, second: false };
+        const options = { now: () => clock.ms, roleCheckIntervalMs: HEARTBEAT_MS, settleMs: 0 };
+        const first = new MonitorCoordinator(createCollector(workspaceDir), storageDir, () => workspaceDir, {
+            ...options,
+            wantsWorkspaceMeasurement: () => inFront.first
+        });
+        const second = new MonitorCoordinator(createCollector(workspaceDir), storageDir, () => workspaceDir, {
+            ...options,
+            wantsWorkspaceMeasurement: () => inFront.second
+        });
+        await first.refresh();
+        await second.refresh();
+        assert.strictEqual(first.isWorkspaceLeader, true);
+
+        // Well inside one role-check interval, the windows swap places.
+        clock.ms += 1000;
+        inFront.first = false;
+        inFront.second = true;
+        await first.refresh();
+        await second.refresh();
+        assert.strictEqual(first.isWorkspaceLeader, false);
+        assert.strictEqual(second.isWorkspaceLeader, true);
     });
 });
