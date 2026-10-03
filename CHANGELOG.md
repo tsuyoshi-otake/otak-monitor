@@ -2,7 +2,7 @@
 
 All notable changes to the "otak-monitor" extension will be documented in this file.
 
-## [Unreleased]
+## [1.3.1] - 2026-10-03
 
 ### Changed
 - Bring the README up to date with 1.3.0: clicking the status bar switches the reading and **Copy Summary**, in the window measuring the folder, is what measures it again, the build-from-source example installs the VSIX `npm run package` writes rather than a 1.2.5 one, and the introduction names the temperature and folder size readings (#21).
