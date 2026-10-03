@@ -80,6 +80,7 @@ export class MonitorCoordinator {
     private workspaceSnapshotPath = '';
     private lastWorkspace: WorkspaceSizeMetrics = {};
     private lastWorkspacePublished = '';
+    private lastWorkspacePublishedAtMs = Number.NEGATIVE_INFINITY;
 
     constructor(
         private readonly collector: MetricsCollector,
@@ -197,7 +198,7 @@ export class MonitorCoordinator {
             ? await this.workspaceLock.renew(nowMs)
             : await this.workspaceLock.acquire(nowMs);
         if (this.workspaceLeader && !wasLeader) {
-            await this.takeOverWorkspace();
+            await this.takeOverWorkspace(nowMs);
         }
     }
 
@@ -206,14 +207,32 @@ export class MonitorCoordinator {
      * since this one last did. This window's own total can be older than what
      * that window published, so it neither shows nor publishes it: it shows
      * the published size until a walk of its own — one that only measures what
-     * changed — has finished.
+     * changed, unless it disagrees with that size — has finished.
+     *
+     * The published size is no older than what this window last knew, so it
+     * replaces that however old it is. It does not stand in for knowing
+     * nothing, though, unless it is fresh: a live leader rewrites its snapshot
+     * every heartbeat, so one older than a lease was left by a window that has
+     * stopped measuring — at a cold start, possibly in a session that ended
+     * days ago — and a window that has not known this folder's size shows none
+     * until it has measured it, as it would with no snapshot at all.
      */
-    private async takeOverWorkspace(): Promise<void> {
-        this.collector.expireWorkspace();
+    private async takeOverWorkspace(nowMs: number): Promise<void> {
         const workspacePath = this.workspacePathProvider();
         const snapshot = await readWorkspaceSnapshot(this.workspaceSnapshotPath);
-        if (workspacePath && snapshot && samePath(snapshot.path, workspacePath)) {
-            this.lastWorkspace = { path: workspacePath, bytes: snapshot.bytes };
+        const published = workspacePath && snapshot && samePath(snapshot.path, workspacePath) ? snapshot : undefined;
+        // A size this window published itself is what its own walk started
+        // from, so only another window's is worth checking that walk against.
+        this.collector.expireWorkspace(published?.leader === this.instanceId ? undefined : published?.bytes);
+        if (!workspacePath || !published) {
+            return;
+        }
+
+        // A timestamp ahead of this clock means the clocks disagree, not that
+        // the leader has stopped.
+        const fresh = nowMs - published.updatedAtMs < LEASE_MS;
+        if (fresh || this.lastWorkspace.path === workspacePath) {
+            this.lastWorkspace = { path: workspacePath, bytes: published.bytes };
         }
     }
 
@@ -358,8 +377,12 @@ export class MonitorCoordinator {
         if (measuredPath === undefined || bytes === undefined) {
             return;
         }
+        // A folder's size rarely changes between two updates, and those writes
+        // are skipped — but not for longer than a heartbeat, as the snapshot's
+        // age is how a window taking over tells this window's size from one a
+        // closed window left behind.
         const payload = `${measuredPath} ${bytes}`;
-        if (payload === this.lastWorkspacePublished) {
+        if (payload === this.lastWorkspacePublished && nowMs - this.lastWorkspacePublishedAtMs < HEARTBEAT_MS) {
             return;
         }
 
@@ -373,6 +396,7 @@ export class MonitorCoordinator {
         try {
             await writeSnapshot(this.workspaceSnapshotPath, this.tag, snapshot);
             this.lastWorkspacePublished = payload;
+            this.lastWorkspacePublishedAtMs = nowMs;
         } catch (error) {
             console.error('otak-monitor: publishing the workspace snapshot failed', error);
         }

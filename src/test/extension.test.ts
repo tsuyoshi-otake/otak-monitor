@@ -312,6 +312,50 @@ suite('Extension Test Suite', () => {
         }
     });
 
+    test('a measurement forced after expiry is taken after it, not by the walk already under way', async () => {
+        const workspacePath = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'otak-monitor-'));
+        const file = path.join(workspacePath, 'file.txt');
+        try {
+            await fs.promises.writeFile(file, '1234');
+            const sampler = new WorkspaceSizeSampler(() => workspacePath, () => 100);
+            assert.deepStrictEqual(await sampler.getWorkspaceSize(), { path: workspacePath, bytes: 4 });
+
+            // Copy Summary right after the window takes the measurement back,
+            // while a walk from before that is still running: the walk's
+            // answer does not count, so the copy waits for one that does.
+            await fs.promises.appendFile(file, '56');
+            const underWay = sampler.getWorkspaceSize(true);
+            sampler.expireMeasurement();
+            assert.deepStrictEqual(await sampler.getWorkspaceSize(true), { path: workspacePath, bytes: 6 });
+            assert.deepStrictEqual(await underWay, {});
+        } finally {
+            await fs.promises.rm(workspacePath, { recursive: true, force: true });
+        }
+    });
+
+    test('a total that disagrees with the size inherited on expiry is measured again in full', async () => {
+        const workspacePath = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'otak-monitor-'));
+        try {
+            await fs.promises.writeFile(path.join(workspacePath, 'file.txt'), '1234');
+            const sampler = new WorkspaceSizeSampler(() => workspacePath, () => 100, 0, 60_000, 1);
+            assert.strictEqual((await sampler.getWorkspaceSize()).bytes, 4);
+
+            // A change no watcher reported leaves the remembered total as it
+            // was, and on its own that is what the next walk answers with.
+            await fs.promises.writeFile(path.join(workspacePath, 'unwatched.txt'), '123456');
+            sampler.expireMeasurement();
+            assert.strictEqual((await sampler.getWorkspaceSize()).bytes, 4);
+
+            // Another window measured the folder since, and its size does not
+            // match: one of the two missed something, so the whole folder is
+            // walked again rather than the remembered total trusted.
+            sampler.expireMeasurement(10);
+            assert.deepStrictEqual(await sampler.getWorkspaceSize(), { path: workspacePath, bytes: 10 });
+        } finally {
+            await fs.promises.rm(workspacePath, { recursive: true, force: true });
+        }
+    });
+
     test('more changes than are worth tracking measure the whole folder again', async () => {
         const workspacePath = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'otak-monitor-'));
         const fileIn = (branch: string) => path.join(workspacePath, branch, 'file.txt');

@@ -318,8 +318,12 @@ export class WorkspaceSizeSampler {
     private cachedMetrics: WorkspaceSizeMetrics = {};
     private lastSampleAt = 0;
     private inFlight: Promise<WorkspaceSizeMetrics> | undefined;
+    /** The generation `inFlight` measures for: one from before an expiry is no answer to a caller after it. */
+    private inFlightGeneration = 0;
     /** Bumped by `expireMeasurement`, so a walk that started before it cannot become the answer. */
     private generation = 0;
+    /** A size another window published, which the next walk's total has to agree with. */
+    private reconcileWith: number | undefined;
 
     /** Total bytes under a directory, kept only for subtrees worth remembering. */
     private readonly subtotals = new Map<string, number>();
@@ -364,12 +368,17 @@ export class WorkspaceSizeSampler {
      * starts from the remembered subtotals, so it only measures what changed.
      *
      * For a window taking the measurement back from another one, whose total
-     * may be newer than anything this sampler has seen.
+     * may be newer than anything this sampler has seen. `inheritedBytes` is
+     * that total: the other window may have seen a change this one's watcher
+     * never reported, which the remembered subtotals would go on hiding, so a
+     * walk that does not arrive at it measures the whole folder before it
+     * becomes the answer.
      */
-    expireMeasurement(): void {
+    expireMeasurement(inheritedBytes?: number): void {
         this.generation++;
         this.cachedMetrics = {};
         this.lastSampleAt = 0;
+        this.reconcileWith = inheritedBytes;
     }
 
     /**
@@ -460,15 +469,26 @@ export class WorkspaceSizeSampler {
             return this.cachedMetrics;
         }
 
-        if (this.inFlight) {
+        if (this.inFlight && this.inFlightGeneration === this.generation) {
             return this.inFlight;
         }
 
-        this.inFlight = this.measure(workspacePath, currentTime, forceRefresh);
+        // A walk that started before the measurement expired cannot be the
+        // answer, so this one waits for it rather than joining it — or racing
+        // it over the remembered subtotals — and then measures.
+        const previous = this.inFlight;
+        const generation = this.generation;
+        const measurement = previous
+            ? previous.catch(() => undefined).then(() => this.measure(workspacePath, currentTime, forceRefresh, generation))
+            : this.measure(workspacePath, currentTime, forceRefresh, generation);
+        this.inFlight = measurement;
+        this.inFlightGeneration = generation;
         try {
-            return await this.inFlight;
+            return await measurement;
         } finally {
-            this.inFlight = undefined;
+            if (this.inFlight === measurement) {
+                this.inFlight = undefined;
+            }
         }
     }
 
@@ -500,32 +520,57 @@ export class WorkspaceSizeSampler {
         return { names, key: [...names].sort().join(' ') };
     }
 
-    private async measure(workspacePath: string, sampledAt: number, forceFullScan: boolean): Promise<WorkspaceSizeMetrics> {
-        const generation = this.generation;
+    private async measure(
+        workspacePath: string,
+        sampledAt: number,
+        forceFullScan: boolean,
+        generation: number
+    ): Promise<WorkspaceSizeMetrics> {
+        if (generation !== this.generation) {
+            // Expired while waiting for the walk before it to finish.
+            return this.cachedMetrics;
+        }
         const exclusionsChanged = this.refreshExclusions();
         const staleMemo = sampledAt - this.lastFullScanAt >= this.fullScanIntervalMs;
-        if (forceFullScan || exclusionsChanged || staleMemo || this.pendingOverflow || workspacePath !== this.memoizedPath) {
-            // Forget everything and walk it all: this is what catches changes no
-            // watcher reported, and drops entries for folders that are gone.
-            this.subtotals.clear();
-            this.invalidated.clear();
-            this.pendingChanges.clear();
-            this.pendingOverflow = false;
-            this.memoizedPath = workspacePath;
-            this.lastFullScanAt = sampledAt;
+        const fullScan =
+            forceFullScan || exclusionsChanged || staleMemo || this.pendingOverflow || workspacePath !== this.memoizedPath;
+        if (fullScan) {
+            this.forgetSubtotals(workspacePath, sampledAt);
         } else {
             this.applyPendingChanges();
         }
 
-        const { bytes } = await this.subtreeSize(workspacePath);
+        let { bytes } = await this.subtreeSize(workspacePath);
+        if (generation === this.generation && !fullScan && this.reconcileWith !== undefined && bytes !== this.reconcileWith) {
+            // Another window arrived at a different total. Either it missed a
+            // change this window was told about, or this window missed one
+            // that no watcher reported — and only a full walk tells which.
+            this.forgetSubtotals(workspacePath, sampledAt);
+            ({ bytes } = await this.subtreeSize(workspacePath));
+        }
         if (generation !== this.generation) {
             // Expired while walking: this total may predate the one the
             // caller has since been given, so the next update measures again.
             return this.cachedMetrics;
         }
+        this.reconcileWith = undefined;
         this.cachedMetrics = { path: workspacePath, bytes };
         this.lastSampleAt = sampledAt;
         return this.cachedMetrics;
+    }
+
+    /**
+     * Forget everything, so the walk that follows covers the whole folder:
+     * this is what catches changes no watcher reported, and drops entries for
+     * folders that are gone.
+     */
+    private forgetSubtotals(workspacePath: string, sampledAt: number): void {
+        this.subtotals.clear();
+        this.invalidated.clear();
+        this.pendingChanges.clear();
+        this.pendingOverflow = false;
+        this.memoizedPath = workspacePath;
+        this.lastFullScanAt = sampledAt;
     }
 
     /**
