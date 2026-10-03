@@ -10,7 +10,11 @@ export const SNAPSHOT_VERSION = 1;
  */
 export interface MachineSnapshot extends MachineMetrics {
     version: number;
-    /** Epoch ms the leader produced this. */
+    /**
+     * Epoch ms the leader produced this. A live leader rewrites it at least
+     * once per heartbeat even when the readings are unchanged, so one older
+     * than a lease was left behind by a window that is gone.
+     */
     updatedAtMs: number;
     /** Instance id of the publishing leader; diagnostic only. */
     leader: string;

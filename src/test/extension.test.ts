@@ -259,6 +259,59 @@ suite('Extension Test Suite', () => {
         }
     });
 
+    test('changing the exclusions does not wait for the cached total to age out', async () => {
+        const workspacePath = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'otak-monitor-'));
+        try {
+            await fs.promises.mkdir(path.join(workspacePath, 'node_modules'));
+            await fs.promises.writeFile(path.join(workspacePath, 'file.txt'), '1234');
+            await fs.promises.writeFile(path.join(workspacePath, 'node_modules', 'big.bin'), '1'.repeat(100));
+
+            let excluded: string[] = [];
+            let currentTime = 100;
+            // The interval the extension uses, so the total is cached for five minutes.
+            const sampler = new WorkspaceSizeSampler(
+                () => workspacePath, () => currentTime, undefined, undefined, undefined, () => excluded
+            );
+            assert.strictEqual((await sampler.getWorkspaceSize()).bytes, 104);
+
+            // A second after the setting changes, not five minutes.
+            excluded = ['node_modules'];
+            currentTime += 1000;
+            assert.strictEqual((await sampler.getWorkspaceSize()).bytes, 4);
+        } finally {
+            await fs.promises.rm(workspacePath, { recursive: true, force: true });
+        }
+    });
+
+    test('an expired measurement is never the answer again, not even from a walk already under way', async () => {
+        const workspacePath = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'otak-monitor-'));
+        const file = path.join(workspacePath, 'file.txt');
+        try {
+            await fs.promises.writeFile(file, '1234');
+            const sampler = new WorkspaceSizeSampler(() => workspacePath, () => 100);
+            assert.deepStrictEqual(await sampler.getWorkspaceSize(), { path: workspacePath, bytes: 4 });
+
+            // The size is unknown from the moment it expires until a walk that
+            // started afterwards lands, cached interval or not.
+            await fs.promises.appendFile(file, '56');
+            sampler.expireMeasurement();
+            assert.deepStrictEqual(sampler.peekWorkspaceSize(), {});
+            await sampler.pendingMeasurement;
+            assert.deepStrictEqual(sampler.peekWorkspaceSize(), { path: workspacePath, bytes: 6 });
+
+            // A walk that was already running when it expired finishes, but
+            // what it found is not reported, and the next update walks again.
+            const underWay = sampler.getWorkspaceSize(true);
+            sampler.expireMeasurement();
+            assert.deepStrictEqual(await underWay, {});
+            assert.deepStrictEqual(sampler.peekWorkspaceSize(), {});
+            await sampler.pendingMeasurement;
+            assert.deepStrictEqual(sampler.peekWorkspaceSize(), { path: workspacePath, bytes: 6 });
+        } finally {
+            await fs.promises.rm(workspacePath, { recursive: true, force: true });
+        }
+    });
+
     test('more changes than are worth tracking measure the whole folder again', async () => {
         const workspacePath = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'otak-monitor-'));
         const fileIn = (branch: string) => path.join(workspacePath, branch, 'file.txt');

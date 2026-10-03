@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { HEARTBEAT_MS, LeaderLock } from './coordination/leaderLock';
+import { HEARTBEAT_MS, LEASE_MS, LeaderLock } from './coordination/leaderLock';
 import { MACHINE_SCOPE, lockPathFor, samePath, snapshotPathFor, workspaceScope } from './coordination/paths';
 import {
     MachineSnapshot,
@@ -70,6 +70,7 @@ export class MonitorCoordinator {
     private readonly machineSnapshotPath: string;
     private lastMachine: MachineMetrics | undefined;
     private lastMachinePublished = '';
+    private lastMachinePublishedAtMs = Number.NEGATIVE_INFINITY;
     /** Whether the previous update sampled here, which is what the CPU baseline is relative to. */
     private sampledLocally = false;
 
@@ -138,14 +139,21 @@ export class MonitorCoordinator {
     }
 
     private async ensureRoles(nowMs: number): Promise<void> {
-        if (this.standalone || nowMs - this.roleCheckedAtMs < this.roleCheckIntervalMs) {
+        if (this.standalone) {
+            return;
+        }
+        // A window that has just come to the front, or just left it, takes up
+        // or hands back the folder measurement now rather than at the next
+        // check: until then the folder would be measured by nobody in front.
+        const scope = this.wantedWorkspaceScope();
+        if (nowMs - this.roleCheckedAtMs < this.roleCheckIntervalMs && scope === this.workspaceScopeKey) {
             return;
         }
         this.roleCheckedAtMs = nowMs;
 
         try {
             await this.ensureMachineRole(nowMs);
-            await this.ensureWorkspaceRole(nowMs);
+            await this.ensureWorkspaceRole(nowMs, scope);
         } catch (error) {
             // The lock file itself is unwritable — a read-only or full storage
             // directory. Coordinating is impossible, so fall back to what every
@@ -164,9 +172,13 @@ export class MonitorCoordinator {
         this.machineLeader = this.machineLeader ? await lock.renew(nowMs) : await lock.acquire(nowMs);
     }
 
-    private async ensureWorkspaceRole(nowMs: number): Promise<void> {
+    /** The folder lease this window should hold right now, or '' for none. */
+    private wantedWorkspaceScope(): string {
         const workspacePath = this.workspacePathProvider();
-        const scope = this.wantsWorkspaceMeasurement() && workspacePath ? workspaceScope(workspacePath) : '';
+        return this.wantsWorkspaceMeasurement() && workspacePath ? workspaceScope(workspacePath) : '';
+    }
+
+    private async ensureWorkspaceRole(nowMs: number, scope: string): Promise<void> {
         if (scope !== this.workspaceScopeKey) {
             // The window moved to another folder, so its lease no longer covers
             // what it measures. Hand the old one back before taking the new one.
@@ -180,9 +192,29 @@ export class MonitorCoordinator {
         if (!this.workspaceLock) {
             return;
         }
-        this.workspaceLeader = this.workspaceLeader
+        const wasLeader = this.workspaceLeader;
+        this.workspaceLeader = wasLeader
             ? await this.workspaceLock.renew(nowMs)
             : await this.workspaceLock.acquire(nowMs);
+        if (this.workspaceLeader && !wasLeader) {
+            await this.takeOverWorkspace();
+        }
+    }
+
+    /**
+     * Start measuring a folder that another window may have been measuring
+     * since this one last did. This window's own total can be older than what
+     * that window published, so it neither shows nor publishes it: it shows
+     * the published size until a walk of its own — one that only measures what
+     * changed — has finished.
+     */
+    private async takeOverWorkspace(): Promise<void> {
+        this.collector.expireWorkspace();
+        const workspacePath = this.workspacePathProvider();
+        const snapshot = await readWorkspaceSnapshot(this.workspaceSnapshotPath);
+        if (workspacePath && snapshot && samePath(snapshot.path, workspacePath)) {
+            this.lastWorkspace = { path: workspacePath, bytes: snapshot.bytes };
+        }
     }
 
     private createLock(scope: string): LeaderLock {
@@ -191,17 +223,24 @@ export class MonitorCoordinator {
 
     private async updateMachine(nowMs: number, forceRefreshDisk: boolean): Promise<MachineMetrics> {
         if (this.standalone || this.machineLeader) {
-            const machine = this.sampleMachine(forceRefreshDisk);
-            await this.publishMachine(nowMs, machine);
+            const { machine, sampled } = this.sampleMachine(forceRefreshDisk);
+            if (sampled) {
+                await this.publishMachine(nowMs, machine);
+            }
             return machine;
         }
 
         const snapshot = await readMachineSnapshot(this.machineSnapshotPath);
-        if (!snapshot) {
+        // A live leader rewrites its snapshot every heartbeat, so one older
+        // than a lease was left by a window that is gone — at a cold start,
+        // possibly in a session that ended days ago. A timestamp ahead of this
+        // clock means the clocks disagree, not that the leader is gone.
+        if (!snapshot || nowMs - snapshot.updatedAtMs >= LEASE_MS) {
             // No leader has published yet (the common case for a few seconds
-            // after a cold start), or its snapshot is unreadable. Showing an
-            // empty status bar would be worse than paying for one sample.
-            return this.sampleMachine(forceRefreshDisk);
+            // after a cold start), or its snapshot is unreadable or left
+            // behind. Showing an empty status bar would be worse than paying
+            // for one sample.
+            return this.sampleMachine(forceRefreshDisk).machine;
         }
 
         const machine: MachineMetrics = {
@@ -223,27 +262,32 @@ export class MonitorCoordinator {
      * first sample after a spell of following another window would otherwise
      * report everything that happened since this window last looked. Re-base it
      * instead and keep showing the reading we already had for one update.
+     *
+     * `sampled` is false for that carried-over reading: it is shown, but not
+     * published, since publishing would stamp an old reading as current.
      */
-    private sampleMachine(forceRefreshDisk: boolean): MachineMetrics {
+    private sampleMachine(forceRefreshDisk: boolean): { machine: MachineMetrics; sampled: boolean } {
         if (!this.sampledLocally) {
             this.sampledLocally = true;
             this.collector.resetCpuBaseline();
             if (this.lastMachine) {
-                return this.lastMachine;
+                return { machine: this.lastMachine, sampled: false };
             }
         }
         this.lastMachine = this.collector.collectMachine(forceRefreshDisk);
-        return this.lastMachine;
+        return { machine: this.lastMachine, sampled: true };
     }
 
     private async publishMachine(nowMs: number, machine: MachineMetrics): Promise<void> {
         if (this.standalone || !this.machineLeader) {
             return;
         }
-        // An idle machine reports the same numbers update after update; skipping
-        // those writes also stops the followers from re-rendering.
+        // An idle machine reports the same numbers update after update, and
+        // those writes are skipped — but not for longer than a heartbeat, as
+        // the snapshot's age is how a follower tells this window's readings
+        // from ones a closed window left behind.
         const payload = JSON.stringify(machine);
-        if (payload === this.lastMachinePublished) {
+        if (payload === this.lastMachinePublished && nowMs - this.lastMachinePublishedAtMs < HEARTBEAT_MS) {
             return;
         }
 
@@ -256,6 +300,7 @@ export class MonitorCoordinator {
         try {
             await writeSnapshot(this.machineSnapshotPath, this.tag, snapshot);
             this.lastMachinePublished = payload;
+            this.lastMachinePublishedAtMs = nowMs;
         } catch (error) {
             console.error('otak-monitor: publishing the machine snapshot failed', error);
         }
@@ -278,10 +323,17 @@ export class MonitorCoordinator {
             // An explicit refresh is worth waiting for; a status bar update is
             // not, so it takes whatever the last walk produced and lets the
             // next one land in a later update.
-            this.lastWorkspace = forceRefresh
+            const measured = forceRefresh
                 ? await this.collector.collectWorkspace(true)
                 : this.collector.peekWorkspace();
-            await this.publishWorkspace(nowMs);
+            if (measured.path === workspacePath) {
+                this.lastWorkspace = measured;
+                await this.publishWorkspace(nowMs, measured);
+            } else if (this.lastWorkspace.path !== workspacePath) {
+                this.lastWorkspace = {};
+            }
+            // Otherwise nothing has been measured since this window took the
+            // lease, and the size it took over from the last leader stands.
             return this.lastWorkspace;
         }
 
@@ -298,8 +350,8 @@ export class MonitorCoordinator {
         return this.lastWorkspace;
     }
 
-    private async publishWorkspace(nowMs: number): Promise<void> {
-        const { path: measuredPath, bytes } = this.lastWorkspace;
+    private async publishWorkspace(nowMs: number, measured: WorkspaceSizeMetrics): Promise<void> {
+        const { path: measuredPath, bytes } = measured;
         if (this.standalone || !this.workspaceLeader || this.workspaceSnapshotPath === '') {
             return;
         }

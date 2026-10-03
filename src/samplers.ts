@@ -318,6 +318,8 @@ export class WorkspaceSizeSampler {
     private cachedMetrics: WorkspaceSizeMetrics = {};
     private lastSampleAt = 0;
     private inFlight: Promise<WorkspaceSizeMetrics> | undefined;
+    /** Bumped by `expireMeasurement`, so a walk that started before it cannot become the answer. */
+    private generation = 0;
 
     /** Total bytes under a directory, kept only for subtrees worth remembering. */
     private readonly subtotals = new Map<string, number>();
@@ -354,6 +356,20 @@ export class WorkspaceSizeSampler {
     /** The measurement in progress, if any. */
     get pendingMeasurement(): Promise<WorkspaceSizeMetrics> | undefined {
         return this.inFlight;
+    }
+
+    /**
+     * Stop answering with anything measured so far: until a walk that starts
+     * after this call has finished, the size is unknown. That walk still
+     * starts from the remembered subtotals, so it only measures what changed.
+     *
+     * For a window taking the measurement back from another one, whose total
+     * may be newer than anything this sampler has seen.
+     */
+    expireMeasurement(): void {
+        this.generation++;
+        this.cachedMetrics = {};
+        this.lastSampleAt = 0;
     }
 
     /**
@@ -415,7 +431,9 @@ export class WorkspaceSizeSampler {
 
     /**
      * The size measured so far, starting a new measurement when the cached one
-     * has aged out but never waiting for it. Walking a large workspace takes
+     * has aged out or the exclusions have changed, but never waiting for it —
+     * so the update that starts it still shows the previous total, and the
+     * next update shows the new one. Walking a large workspace takes
      * seconds, and blocking a status bar update on it delays every other
      * reading in that update for the sake of a number that changes slowly.
      */
@@ -434,7 +452,10 @@ export class WorkspaceSizeSampler {
         }
 
         const currentTime = this.now();
-        if (!forceRefresh && this.cachedMetrics.path === workspacePath &&
+        // A change to the exclusions makes the cached total wrong at once, so
+        // it does not get to wait out the interval like an edit would.
+        const exclusionsChanged = this.readExclusions().key !== this.excludedKey;
+        if (!forceRefresh && !exclusionsChanged && this.cachedMetrics.path === workspacePath &&
             this.lastSampleAt > 0 && currentTime - this.lastSampleAt < this.sampleIntervalMs) {
             return this.cachedMetrics;
         }
@@ -464,8 +485,7 @@ export class WorkspaceSizeSampler {
      * rather than once per directory.
      */
     private refreshExclusions(): boolean {
-        const names = this.excludedNamesProvider().map((name) => name.trim()).filter((name) => name !== '');
-        const key = [...names].sort().join(' ');
+        const { names, key } = this.readExclusions();
         if (key === this.excludedKey) {
             return false;
         }
@@ -474,7 +494,14 @@ export class WorkspaceSizeSampler {
         return true;
     }
 
+    /** The exclusions configured now, and a key that ignores their order. */
+    private readExclusions(): { names: string[]; key: string } {
+        const names = this.excludedNamesProvider().map((name) => name.trim()).filter((name) => name !== '');
+        return { names, key: [...names].sort().join(' ') };
+    }
+
     private async measure(workspacePath: string, sampledAt: number, forceFullScan: boolean): Promise<WorkspaceSizeMetrics> {
+        const generation = this.generation;
         const exclusionsChanged = this.refreshExclusions();
         const staleMemo = sampledAt - this.lastFullScanAt >= this.fullScanIntervalMs;
         if (forceFullScan || exclusionsChanged || staleMemo || this.pendingOverflow || workspacePath !== this.memoizedPath) {
@@ -491,6 +518,11 @@ export class WorkspaceSizeSampler {
         }
 
         const { bytes } = await this.subtreeSize(workspacePath);
+        if (generation !== this.generation) {
+            // Expired while walking: this total may predate the one the
+            // caller has since been given, so the next update measures again.
+            return this.cachedMetrics;
+        }
         this.cachedMetrics = { path: workspacePath, bytes };
         this.lastSampleAt = sampledAt;
         return this.cachedMetrics;
