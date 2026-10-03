@@ -228,6 +228,39 @@ suite('Extension Test Suite', () => {
         }
     });
 
+    test('a forced measurement does not wait for the cached total to age out, but still only measures what changed', async () => {
+        const workspacePath = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'otak-monitor-'));
+        const fileIn = (branch: string) => path.join(workspacePath, branch, 'file.txt');
+        try {
+            await fs.promises.mkdir(path.join(workspacePath, 'a'));
+            await fs.promises.mkdir(path.join(workspacePath, 'b'));
+            await fs.promises.writeFile(fileIn('a'), '1234');
+            await fs.promises.writeFile(fileIn('b'), '123456');
+
+            let currentTime = 100;
+            const sampler = new WorkspaceSizeSampler(() => workspacePath, () => currentTime, 1000, 60_000, 1);
+            assert.strictEqual((await sampler.getWorkspaceSize()).bytes, 10);
+
+            await fs.promises.appendFile(fileIn('a'), '5');
+            await fs.promises.appendFile(fileIn('b'), '78');
+            sampler.markChanged(fileIn('a'));
+            // An ordinary update goes on reusing the total until it ages out.
+            assert.strictEqual((await sampler.getWorkspaceSize()).bytes, 10);
+
+            // Copy Summary does not wait for that, but it is not a reason to
+            // walk everything either: b, which nothing reported, keeps the
+            // total it was measured with, which it could only do by not being
+            // walked.
+            assert.strictEqual((await sampler.getWorkspaceSize(true)).bytes, 11);
+
+            // What no watcher reported is still caught by the full walk.
+            currentTime += 60_000;
+            assert.strictEqual((await sampler.getWorkspaceSize()).bytes, 13);
+        } finally {
+            await fs.promises.rm(workspacePath, { recursive: true, force: true });
+        }
+    });
+
     test('excluded directories are left out of the total, and changing them re-measures', async () => {
         const workspacePath = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'otak-monitor-'));
         try {

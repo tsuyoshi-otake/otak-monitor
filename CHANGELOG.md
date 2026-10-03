@@ -6,6 +6,7 @@ All notable changes to the "otak-monitor" extension will be documented in this f
 
 ### Changed
 - Bring the README up to date with 1.3.0: clicking the status bar switches the reading and **Copy Summary**, in the window measuring the folder, is what measures it again, the build-from-source example installs the VSIX `npm run package` writes rather than a 1.2.5 one, and the introduction names the temperature and folder size readings (#21).
+- Measure only what changed when **Copy Summary** refreshes the folder size, instead of walking the whole folder again on every press. On this repository (6.9 GB) a press with nothing changed went from about one second and 65,231 filesystem requests to none. A change no file watcher reports, such as one under `node_modules`, now reaches the copy with the next full walk, every 30 minutes, as it already did for the status bar (#23).
 
 ### Fixed
 - Stop showing a machine reading left behind by a window that is gone. A window started after the sampling window had closed — even days later — showed that window's last CPU, memory, and disk readings for its first two updates. A snapshot older than the 30-second lease is now ignored, the sampling window rewrites its snapshot at least every 10 seconds even when the readings have not changed so its age stays meaningful, and the reading a newly elected window carries over for one update is no longer re-published as current (#15).
